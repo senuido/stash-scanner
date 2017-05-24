@@ -13,7 +13,7 @@ class AppGUI(Tk):
 
         super().__init__()
 
-        self.title("Stash Scanner")
+        self.title("Stash Scanner by Senu")
         self.geometry("1024x600")
         self.center()
         self.create_widgets()
