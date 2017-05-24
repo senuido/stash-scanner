@@ -3,7 +3,7 @@
   <name>Compact Dark Minimal</name>
   <author>Mike Craddick</author>
   <version>1.0</version>
-  <packageurl>https://github.com/senuido/stash-scanner/raw/master/growl_display/CompactDarkMinimal.zip</packageurl>
+  <packageurl>http://github.com/senuido/stash-scanner/raw/master/growl_display/CompactDarkMinimal.zip</packageurl>
   <description>
     <![CDATA[
     Displays notifications in a compact, dark-colored alert in the corner of the screen. Minimal version.
