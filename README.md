@@ -3,7 +3,7 @@
 ## What it does
 - Connects to PoE stash API and consumes stash information
 - Parses items and attempts to find a match according to the configured filters
-- When a match is found, a notification messeage is shown, a sound is played and the whisper message is copied to the clipboard
+- When a match is found, a notification message is shown, a sound is played and a message is copied to the clipboard
 
 ## Installation
 - Install [Python](https://www.python.org/ftp/python/3.5.2/python-3.5.2.exe)
