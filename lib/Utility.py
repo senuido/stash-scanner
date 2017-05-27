@@ -1,5 +1,9 @@
+import json
 import os
+import pycurl
+import time
 from configparser import ConfigParser
+from io import BytesIO
 
 
 class AppException(Exception):
@@ -38,3 +42,33 @@ class AppConfiguration(object):
             self.__dict__.update(parser.items(name))
 
 config = AppConfiguration()
+
+
+def getJsonFromURL(url, handle=None, max_attempts=1):
+    if not handle:
+        handle = pycurl.Curl()
+
+    buffer = BytesIO()
+    handle.setopt(handle.URL, url)
+    # handle.setopt(handle.VERBOSE, 1)
+    handle.setopt(handle.ENCODING, 'gzip, deflate')
+    handle.setopt(handle.WRITEFUNCTION, buffer.write)
+
+    attempts = 0
+
+    while attempts < max_attempts:
+        if attempts > 0:
+            time.sleep(2)
+
+        handle.perform()
+        if handle.getinfo(handle.RESPONSE_CODE) == 200:
+            return json.loads(buffer.getvalue().decode())
+
+        attempts += 1
+        print(tmsg("HTTP Code: {} while trying to retrieve URL: {}".format(handle.getinfo(handle.RESPONSE_CODE), url)))
+
+    return None
+
+
+def tmsg(msg):
+    return "{}# {}".format(time.strftime("%H:%M:%S"), msg)

@@ -2,6 +2,7 @@ import re
 from array import array
 
 from lib.Utility import config, AppException
+from lib.CurrencyManager import cm
 
 _ITEM_TYPE = {0: 'normal',
               1: 'magic',
@@ -84,13 +85,19 @@ class Filter:
             if key == "buyout" and self.criteria[key] != get_item_buyout(item, stash):
                 return False
             if key == "price":
-                price = get_item_price_display(item, stash)
-                if price != "":
-                    amount, currency = price.split()
-                    if currency in self.criteria[key]:
-                        if float(amount) > self.criteria[key][currency]: return False
-                    elif "other" in self.criteria[key]:
-                        if float(amount) > self.criteria[key]["other"]: return False
+                # price = get_item_price_display(item, stash)
+                # if price != "":
+                #     amount, currency = price.split()
+                #     if currency in self.criteria[key]:
+                #         if float(amount) > self.criteria[key][currency]: return False
+                #     elif "other" in self.criteria[key]:
+                #         if float(amount) > self.criteria[key]["other"]: return False
+                price = get_item_price(item, stash)
+                if price is not None:
+                    amount, currency = price
+                    if cm.convert(float(amount), currency) > cm.convert(*self.criteria[key]):
+                        return False
+
             if key == "name":
                 if not any(name in get_item_name(item).lower() for name in self.criteria[key]):
                     return False
@@ -196,15 +203,22 @@ class Filter:
             elif len(atts) >= 2:
                 if atts[0] == 'price':
                     try:
-                        prices = {}
-                        for att in atts[1:]:
-                            amount, currency = att.strip().split()
-                            amount = float(amount)
-                            if currency not in _CURRENCY_DISPLAY.values():
-                                raise ValueError
+                        amount, currency = atts[1].strip().split()
+                        amount = float(amount)
+                        if currency not in cm.whisper:  # cm.shorts
+                            raise ValueError
 
-                            prices[currency] = amount
-                        crit[atts[0]] = prices
+                        crit[atts[0]] = (amount, currency)
+
+                        # prices = {}
+                        # for att in atts[1:]:
+                        #     amount, currency = att.strip().split()
+                        #     amount = float(amount)
+                        #     if currency not in _CURRENCY_DISPLAY.values():
+                        #         raise ValueError
+                        #
+                        #     prices[currency] = amount
+                        # crit[atts[0]] = prices
                     except ValueError:
                         raise AppException(FILTER_INVALID_CURRENCY_TYPE.format(field))
                 elif atts[0] == 'name':
@@ -265,7 +279,7 @@ def str2bool(str):
     raise ValueError
 
 
-def get_item_price(item, stash):
+def get_item_price_raw(item, stash):
     price = None
     if "note" in item:
         price = item["note"]
@@ -295,7 +309,7 @@ def get_item_name(item):
 
 
 def get_item_buyout(item, stash):
-    price = get_item_price(item, stash)
+    price = get_item_price_raw(item, stash)
     if price is not None:
         match = _PRICE_REGEX.match(price.lower())
 
@@ -308,19 +322,28 @@ def get_item_stacksize(item):
     return item.get("stackSize", 1)
 
 
+def get_item_price(item, stash):
+    # Returns tuple (amount, currency)
+
+    price = get_item_price_raw(item, stash)
+    if price is not None:
+        match = _PRICE_REGEX.match(price.lower())
+
+        if match is not None:
+            return match.group(2, 3)
+
+    return None
+
 def get_item_price_display(item, stash):
     # Returns format of {amount} {currency}
 
     price = get_item_price(item, stash)
     if price is not None:
-        match = _PRICE_REGEX.match(price.lower())
-
-        if match is not None:
-            amount, currency = match.group(2, 3)
-            return "{} {}".format(amount, _CURRENCY_DISPLAY[currency] if currency in _CURRENCY_DISPLAY else currency)
+        amount, currency = price
+        # return "{} {}".format(amount, _CURRENCY_DISPLAY[currency] if currency in _CURRENCY_DISPLAY else currency)
+        return "{} {}".format(amount, cm.whisper[currency] if currency in cm.whisper else currency)
 
     return ""
-
 
 def get_whisper_msg(item, stash):
     template = "@{} Hi, I would like to buy your {}{} listed{} in {} (stash tab \"{}\"; position: left {}, top {})"
@@ -340,7 +363,7 @@ def get_whisper_msg(item, stash):
 def get_item_info(item, stash):
     template = "Name: {}, ilvl: {}, Corrupted: {}, Sockets: {}, Links: {}, Price: {}, Stack: {}, Account: {}"
 
-    price = get_item_price(item, stash)
+    price = get_item_price_raw(item, stash)
     if price is None:
         price = "n/a"
 
@@ -354,7 +377,7 @@ def parse_stashes(data, filters, stateMgr, resultHandler):
             for item in stash["items"]:
                 for fltr in filters:
                     if fltr.checkItem(item, stash):
-                        if stateMgr.addItem(item["id"], get_item_price(item, stash), stash["accountName"]):
+                        if stateMgr.addItem(item["id"], get_item_price_raw(item, stash), stash["accountName"]):
                             resultHandler(item, stash, fltr)
                         break
 

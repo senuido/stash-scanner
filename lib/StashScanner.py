@@ -5,12 +5,11 @@ import time
 import traceback
 import winsound
 from enum import IntEnum
-from io import BytesIO
 
 from lib.ItemHelper import *
 from lib.NotifyThread import NotifyThread
 from lib.StateManager import StateManager
-from lib.Utility import config, AppException
+from lib.Utility import config, AppException, getJsonFromURL, tmsg
 
 # API URLS
 NINJA_API = "http://api.poe.ninja/api/Data/GetStats"
@@ -40,7 +39,6 @@ class ControlMsg(IntEnum):
     UpdateID = 1
 
 
-
 class StashScanner:
 
     def __init__(self, queue):
@@ -58,37 +56,12 @@ class StashScanner:
     def send_msg(self, msg, log_level=0, msg_type=MsgType.Text, timed=False):
             if self.log_level >= log_level:
                 if timed:
-                    msg = tprints(msg)
+                    msg = tmsg(msg)
                 self.msg_queue.put((msg, msg_type))
-
-    def getJsonFromURL(self, url, handle=None, max_attempts=1):
-        if not handle:
-            handle = pycurl.Curl()
-
-        buffer = BytesIO()
-        handle.setopt(handle.URL, url)
-        # handle.setopt(handle.VERBOSE, 1)
-        handle.setopt(handle.ENCODING, 'gzip, deflate')
-        handle.setopt(handle.WRITEFUNCTION, buffer.write)
-
-        attempts = 0
-
-        while attempts < max_attempts:
-            if attempts > 0:
-                time.sleep(2)
-
-            handle.perform()
-            if handle.getinfo(handle.RESPONSE_CODE) == 200:
-                return json.loads(buffer.getvalue().decode())
-
-            attempts += 1
-            self.send_tmsg("HTTP Code: {} while trying to retrieve URL: {}"
-                           .format(handle.getinfo(handle.RESPONSE_CODE), url))
-        return None
 
     def handleResult(self, item, stash, fltr):
         whisperMsg = get_whisper_msg(item, stash)
-        price = get_item_price(item, stash)
+        price = get_item_price_raw(item, stash)
         if price is None:
             price = ""
 
@@ -123,6 +96,17 @@ class StashScanner:
     def scan(self):
         self.send_msg("Scanning started..")
 
+        cm.load()
+
+        try:
+            cm.update()
+            self.send_msg("Currency rates updated successfully.")
+        except AppException as e:
+            self.send_msg(e, LogLevel.Error, MsgType.TextError)
+
+        if not cm.initialized:
+            raise AppException("Failed to load currency information.")
+
         filters = Filter.loadfilters()
         if not len(filters):
             raise AppException("No filters were loaded.")
@@ -138,7 +122,7 @@ class StashScanner:
 
         if stateMgr.getChangeId() == "":
             self.send_msg("No state was used. Fetching latest id from ninja API")
-            data = self.getJsonFromURL(NINJA_API, max_attempts=3)
+            data = getJsonFromURL(NINJA_API, max_attempts=3)
             if data is None:
                 raise AppException("Error retrieving latest id from ninja API, bad response")
 
@@ -158,8 +142,9 @@ class StashScanner:
             try:
                 #self.send_tmsg("Requesting change id: {}".format(stateMgr.getChangeId()), LogLevel.Info)
                 self.send_msg((ControlMsg.UpdateID, stateMgr.getChangeId()), msg_type=MsgType.Control)
-                data = self.getJsonFromURL(stashUrl, handle=c, max_attempts=1)
+                data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
                 if data is None:
+                    self.send_tmsg("Bad response while retrieving data from URL: {}".format(stashUrl), LogLevel.Error, MsgType.TextError)
                     time.sleep(2)
                     continue
 
@@ -191,7 +176,7 @@ class StashScanner:
 
             except pycurl.error as e:
                 errno, msg = e.args
-                logMsg = tprints("ERROR {}: {}".format(errno, msg))
+                logMsg = tmsg("ERROR {}: {}".format(errno, msg))
                 self.send_msg(logMsg, LogLevel.Error, MsgType.TextError)
                 logerror(logMsg)
 
@@ -209,10 +194,6 @@ class StashScanner:
                 c.close()
                 c = pycurl.Curl()
                 time.sleep(10)
-
-
-def tprints(msg):
-    return "{}# {}".format(time.strftime("%H:%M:%S"), msg)
 
 
 def logerror(msg):
