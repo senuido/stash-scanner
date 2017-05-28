@@ -43,7 +43,6 @@ class AppConfiguration(object):
 
 config = AppConfiguration()
 
-
 def getJsonFromURL(url, handle=None, max_attempts=1):
     if not handle:
         handle = pycurl.Curl()
@@ -68,6 +67,12 @@ def getJsonFromURL(url, handle=None, max_attempts=1):
         print(tmsg("HTTP Code: {} while trying to retrieve URL: {}".format(handle.getinfo(handle.RESPONSE_CODE), url)))
 
     return None
+
+
+def str2bool(val):
+    if val.lower() in ("true", "t", "yes", "y", "1"): return True
+    if val.lower() in ("false", "f", "no", "n", "0"): return False
+    raise ValueError
 
 
 def tmsg(msg):

@@ -1,8 +1,11 @@
+import json
 import re
 from array import array
 
+from json import JSONEncoder
 from lib.Utility import config, AppException
 from lib.CurrencyManager import cm
+from jsonschema import validate, ValidationError, SchemaError
 
 _ITEM_TYPE = {0: 'normal',
               1: 'magic',
@@ -15,52 +18,38 @@ _ITEM_TYPE = {0: 'normal',
               8: 'prophecy',
               9: 'relic'}
 
-_CURRENCY_DISPLAY = {'alt': 'alternation',
-                     'fuse': 'fusing',
-                     'alch': 'alchemy',
-                     'exa': 'exalted',
-                     'exalt': 'exalted',
-                     'chrom': 'chromatic',
-                     'jew': 'jewellers',
-                     'chance': 'chance',
-                     'scour': 'scouring',
-                     'chaos': 'chaos',
-                     'blessed': 'blessed',
-                     'regret': 'regret',
-                     'regal': 'regal',
-                     'divine': 'divine',
-                     'vaal': 'vaal',
-                     'chisel': 'chisel',
-                     'gcp': 'gcp',
-                     'mir': 'mirror',
-                     'kal': 'mirror',
-                     'other': 'other'}
-
-_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z]+)')
+_PRICE_REGEX = re.compile('\s*([0-9]+|[0-9]+\.[0-9]+)\s+([a-z]+)')
+_BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z]+)')
 _LOCALIZATION_REGEX = re.compile("<<.*>>")
 
-FILTER_FILE_MISSING = "Filter file was not found: {}"
-FILTER_INVALID_ATTRIBUTE = "Unknown attribute: {} in filter {}"
-FILTER_INVALID_CURRENCY_TYPE = "Invalid currency type in filter attribute {}"
-FILTER_INSUFFICIENT_VALUES = "Not enough values in filter attribute: {}. expected one or more"
-FILTER_INVALID_ITEM_TYPE = "Invalid item type in filter attribute {}"
-FILTER_EXTRA_VALUES = "Too many values in filter attribute: {} expected 1. ignoring exceeding args"
-FILTER_INVALID_VALUE_TYPE = "Invalid value type in filter field {}, expected type {}"
+FILTER_FILE_MISSING = "Missing file: {}"
+FILTER_INVALID_JSON = "Error decoding JSON: {} in file {}"
+FILTER_VALIDATION_ERROR = "Error validating filter: {}"
+FILTER_SCHEMA_ERROR = "Filter schema error: {}"
+FILTER_INVALID_PRICE = "Invalid price in filter: {}"
 FILTER_INVALID_REGEX = "Invalid regex: {}, error: {}"
+
+
+class FilterDecoder(JSONEncoder):
+    RE_COMPILED = type(re.compile(''))
+
+    def default(self, o):
+        if isinstance(o, FilterDecoder.RE_COMPILED):
+            return o.pattern
+        return json.JSONEncoder.default(self, o)
 
 
 class Filter:
 
-    filter_args = {'ilvl': int, 'buyout': bool, 'type': str, 'base': str, 'sockets': int, 'links': int, 'title': str,
-                   'price': dict, 'corrupted': bool, 'crafted': bool, 'name': str,
-                   'implicit': str, 'explicit': str, 'mods': str, 'stacksize': int}
-    FILTER_FNAME = "cfg\\filters.cfg"
+    FILTER_FNAME = "cfg\\filters.json"
+    FILTER_SCHEMA_FNAME = "cfg\\filters.schema.json"
 
     def __init__(self, criteria):
         self.criteria = criteria
 
     def __str__(self):
-        return self.criteria.__str__()
+        # return self.criteria.__str__()
+        return json.dumps(self.criteria, sort_keys=True, cls=FilterDecoder)
 
     def checkItem(self, item, stash):
         for key in self.criteria:
@@ -85,13 +74,6 @@ class Filter:
             if key == "buyout" and self.criteria[key] != get_item_buyout(item, stash):
                 return False
             if key == "price":
-                # price = get_item_price_display(item, stash)
-                # if price != "":
-                #     amount, currency = price.split()
-                #     if currency in self.criteria[key]:
-                #         if float(amount) > self.criteria[key][currency]: return False
-                #     elif "other" in self.criteria[key]:
-                #         if float(amount) > self.criteria[key]["other"]: return False
                 price = get_item_price(item, stash)
                 if price is not None:
                     amount, currency = price
@@ -107,14 +89,14 @@ class Filter:
                 mods = [mod.lower() for mod in item.get("implicitMods", [])]
                 if len(self.criteria[key]) > len(mods): return False
                 for mod_regex in self.criteria[key]:
-                    if not Filter._checkmod(mod_regex[0], mod_regex[1:], mods):
+                    if not Filter._checkmod(mod_regex['expr'], mod_regex.get('values', []), mods):
                         return False
 
             if key == "explicit":
                 mods = [mod.lower() for mod in item.get("explicitMods", [])]
                 if len(self.criteria[key]) > len(mods): return False
                 for mod_regex in self.criteria[key]:
-                    if not Filter._checkmod(mod_regex[0], mod_regex[1:], mods):
+                    if not Filter._checkmod(mod_regex['expr'], mod_regex.get('values', []), mods):
                         return False
 
             if key == "mods":
@@ -125,7 +107,7 @@ class Filter:
                 if len(self.criteria[key]) > len(mods): return False
                 mods = [mod.lower() for mod in mods]
                 for mod_regex in self.criteria[key]:
-                    if not Filter._checkmod(mod_regex[0], mod_regex[1:], mods):
+                    if not Filter._checkmod(mod_regex['expr'], mod_regex.get('values', []), mods):
                         return False
 
         return True
@@ -169,115 +151,56 @@ class Filter:
         filters = []
 
         try:
+            fname = Filter.FILTER_FNAME
             with open(Filter.FILTER_FNAME) as f:
-                line = f.readline()
-                while line:
-                    fltr = Filter.fromString(line)
+                data = json.load(f)
 
-                    if fltr is not None:
-                        filters.append(fltr)
+            fname = Filter.FILTER_SCHEMA_FNAME
+            with open(Filter.FILTER_SCHEMA_FNAME) as f:
+                schema = json.load(f)
 
-                    line = f.readline()
+            # normalize keys and values
+            data = lower_json(data)
+
+            validate(data, schema)
+
+            for fltr in data:
+                if 'price' in fltr:
+                    price_valid = False
+                    match = _PRICE_REGEX.match(fltr['price'])
+                    if match is not None:
+                        amount, currency = match.group(1, 2)
+                        if currency in cm.whisper:  # cm.shorts
+                            price_valid = True
+                            fltr['price'] = (float(amount), currency)
+
+                    if not price_valid:
+                        raise AppException(FILTER_INVALID_PRICE.format(fltr['price']))
+
+                for regex in fltr.get('mods', []):
+                    regex['expr'] = re.compile(regex['expr'])
+
+                for regex in fltr.get('implicit', []):
+                    regex['expr'] = re.compile(regex['expr'])
+
+                for regex in fltr.get('explicit', []):
+                    regex['expr'] = re.compile(regex['expr'])
+
+                filters.append(Filter(fltr))
+
+        except re.error as e:
+            raise AppException(FILTER_INVALID_REGEX.format(e.pattern, e))
+        except ValidationError as e:
+            # if e.validator == "required":
+            raise AppException(FILTER_VALIDATION_ERROR.format(e.message))
+        except SchemaError as e:
+            raise AppException(FILTER_SCHEMA_ERROR.format(e.message))
+        except json.decoder.JSONDecodeError as e:
+            raise AppException(FILTER_INVALID_JSON.format(e, fname))
         except FileNotFoundError:
-            raise AppException(FILTER_FILE_MISSING.format(Filter.FILTER_FNAME))
+            raise AppException(FILTER_FILE_MISSING.format(fname))
 
         return filters
-
-    @staticmethod
-    def fromString(str):
-        str = str.split(sep='#')[0].strip()
-
-        fields = filter(None, str.split(','))
-
-        crit = {}
-        for field in fields:
-            # clear those pesky whitespaces
-            atts = [att.strip() for att in field.lower().split(':')]
-
-            if atts[0] not in Filter.filter_args:
-                raise AppException(FILTER_INVALID_ATTRIBUTE.format(atts[0], str))
-
-            if len(atts) == 1:
-                crit[atts[0]] = True
-
-            elif len(atts) >= 2:
-                if atts[0] == 'price':
-                    try:
-                        amount, currency = atts[1].strip().split()
-                        amount = float(amount)
-                        if currency not in cm.whisper:  # cm.shorts
-                            raise ValueError
-
-                        crit[atts[0]] = (amount, currency)
-
-                        # prices = {}
-                        # for att in atts[1:]:
-                        #     amount, currency = att.strip().split()
-                        #     amount = float(amount)
-                        #     if currency not in _CURRENCY_DISPLAY.values():
-                        #         raise ValueError
-                        #
-                        #     prices[currency] = amount
-                        # crit[atts[0]] = prices
-                    except ValueError:
-                        raise AppException(FILTER_INVALID_CURRENCY_TYPE.format(field))
-                elif atts[0] == 'name':
-                    crit[atts[0]] = [name for name in atts[1:]]
-                    if not len(crit[atts[0]]):
-                        raise AppException(FILTER_INSUFFICIENT_VALUES.format(field))
-                elif atts[0] == 'type':
-                    types = []
-                    for item_type in atts[1:]:
-                        if item_type not in _ITEM_TYPE.values():
-                            raise AppException(FILTER_INVALID_ITEM_TYPE.format(field))
-                        types.append(item_type)
-                    if len(types):
-                        crit[atts[0]] = types
-                    else:
-                        raise AppException(FILTER_INSUFFICIENT_VALUES.format(field))
-                elif atts[0] in ('implicit', 'explicit', 'mods'):
-                    regexes = []
-
-                    for mod in atts[1:]:
-                        mod_fields = mod.split(';')
-
-                        l = [float(num) for num in mod_fields[1:]]
-
-                        try:
-                            l.insert(0, re.compile(mod_fields[0]))
-                        except re.error as e:
-                            raise AppException(FILTER_INVALID_REGEX.format(mod_fields[0], e))
-                        regexes.append(l)
-
-                    crit[atts[0]] = regexes
-                else:
-                    try:
-                        if Filter.filter_args[atts[0]] == bool:
-                            crit[atts[0]] = str2bool(atts[1])
-                        else:
-                            # 'hack' to get original title
-                            if atts[0] == 'title':
-                                crit[atts[0]] = field.split(':')[1].strip()
-                            else:
-                                crit[atts[0]] = Filter.filter_args[atts[0]](atts[1])
-
-                        if len(atts) > 2:
-                            print(FILTER_EXTRA_VALUES.format(field))
-                    except ValueError:
-                        raise AppException(FILTER_INVALID_VALUE_TYPE
-                                           .format(field, Filter.filter_args[atts[0]].__name__))
-
-        if not len(crit):
-            return None
-
-        return Filter(crit)
-
-
-def str2bool(str):
-    if str.lower() in ("true", "t", "yes", "y", "1"): return True
-    if str.lower() in ("false", "f", "no", "n", "0"): return False
-    raise ValueError
-
 
 def get_item_price_raw(item, stash):
     price = None
@@ -311,7 +234,7 @@ def get_item_name(item):
 def get_item_buyout(item, stash):
     price = get_item_price_raw(item, stash)
     if price is not None:
-        match = _PRICE_REGEX.match(price.lower())
+        match = _BO_PRICE_REGEX.match(price.lower())
 
         if match is not None:
             return float(match.group(2)) > 0
@@ -327,7 +250,7 @@ def get_item_price(item, stash):
 
     price = get_item_price_raw(item, stash)
     if price is not None:
-        match = _PRICE_REGEX.match(price.lower())
+        match = _BO_PRICE_REGEX.match(price.lower())
 
         if match is not None:
             return match.group(2, 3)
@@ -340,7 +263,6 @@ def get_item_price_display(item, stash):
     price = get_item_price(item, stash)
     if price is not None:
         amount, currency = price
-        # return "{} {}".format(amount, _CURRENCY_DISPLAY[currency] if currency in _CURRENCY_DISPLAY else currency)
         return "{} {}".format(amount, cm.whisper[currency] if currency in cm.whisper else currency)
 
     return ""
@@ -361,14 +283,14 @@ def get_whisper_msg(item, stash):
 
 
 def get_item_info(item, stash):
-    template = "Name: {}, ilvl: {}, Corrupted: {}, Sockets: {}, Links: {}, Price: {}, Stack: {}, Account: {}"
+    template = "Name: {}, ilvl: {}, Corrupted: {}, Sockets: {}, Links: {}, Price: {}, Stack: {}, Account: {}, Implicit: {}"
 
     price = get_item_price_raw(item, stash)
     if price is None:
         price = "n/a"
 
     return template.format(get_item_name(item), item["ilvl"], item["corrupted"], get_item_sockets(item),
-                           get_item_links(item), price, get_item_stacksize(item), stash["accountName"])
+                           get_item_links(item), price, get_item_stacksize(item), stash["accountName"], item.get("implicitMods", []))
 
 
 def parse_stashes(data, filters, stateMgr, resultHandler):
@@ -386,3 +308,20 @@ def parse_stashes(data, filters, stateMgr, resultHandler):
 
 def parse_next_id(data, stateMgr):
     stateMgr.saveState(data["next_change_id"])
+
+
+def lower_json(x):
+    if isinstance(x, list):
+        return [lower_json(v) for v in x]
+    if isinstance(x, dict):
+        d = {}
+        for k, v in x.items():
+            if k.lower() in ("title"):
+                d[k.lower()] = v
+            else:
+                d[k.lower()] = lower_json(v)
+        return d
+        # return {k.lower(): lower_keys(v) for k, v in x.items()}
+    if isinstance(x, str):
+        return x.lower()
+    return x

@@ -1,0 +1,154 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "definitions": {},
+    "id": "filters",
+    "items": {
+        "id": "filters/items",
+        "properties": {
+            "base": {
+                "id": "filters/items/properties/base",
+                "type": "string"
+            },
+            "buyout": {
+                "id": "filters/items/properties/buyout",
+                "type": "boolean"
+            },
+            "corrupted": {
+                "id": "filters/items/properties/corrupted",
+                "type": "boolean"
+            },
+            "crafted": {
+                "id": "filters/items/properties/crafted",
+                "type": "boolean"
+            },
+            "explicit": {
+                "id": "filters/items/properties/explicit",
+                "items": {
+                    "id": "filters/items/properties/explicit/items",
+                    "properties": {
+                        "expr": {
+                            "id": "filters/items/properties/explicit/items/properties/expr",
+                            "type": "string"
+                        },
+                        "values": {
+                            "id": "filters/items/properties/explicit/items/properties/values",
+                            "items": {
+                                "id": "filters/items/properties/explicit/items/properties/values/items",
+                                "type": "number"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "expr"
+                    ],
+                    "type": "object"
+                },
+                "type": "array"
+            },
+            "ilvl": {
+                "id": "filters/items/properties/ilvl",
+                "minimum": 0,
+                "type": "number"
+            },
+            "implicit": {
+                "id": "filters/items/properties/implicit",
+                "items": {
+                    "id": "filters/items/properties/implicit/items",
+                    "properties": {
+                        "expr": {
+                            "id": "filters/items/properties/implicit/items/properties/expr",
+                            "type": "string"
+                        },
+                        "values": {
+                            "id": "filters/items/properties/implicit/items/properties/values",
+                            "items": {
+                                "id": "filters/items/properties/implicit/items/properties/values/items",
+                                "type": "number"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "expr"
+                    ],
+                    "type": "object"
+                },
+                "type": "array"
+            },
+            "links": {
+                "id": "filters/items/properties/links",
+                "maximum": 6,
+                "minimum": 0,
+                "type": "integer"
+            },
+            "mods": {
+                "id": "filters/items/properties/mods",
+                "items": {
+                    "id": "filters/items/properties/mods/items",
+                    "properties": {
+                        "expr": {
+                            "id": "filters/items/properties/mods/items/properties/expr",
+                            "type": "string"
+                        },
+                        "values": {
+                            "id": "filters/items/properties/mods/items/properties/values",
+                            "items": {
+                                "id": "filters/items/properties/mods/items/properties/values/items",
+                                "type": "number"
+                            },
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "expr"
+                    ],
+                    "type": "object"
+                },
+                "type": "array"
+            },
+            "name": {
+                "id": "filters/items/properties/name",
+                "items": {
+                    "id": "filters/items/properties/name/items",
+                    "type": "string"
+                },
+                "type": "array"
+            },
+            "price": {
+                "id": "filters/items/properties/price",
+                "type": "string"
+            },
+            "sockets": {
+                "id": "filters/items/properties/sockets",
+                "maximum": 6,
+                "minimum": 0,
+                "type": "integer"
+            },
+            "stacksize": {
+                "id": "filters/items/properties/stacksize",
+                "minimum": 1,
+                "type": "integer"
+            },
+            "title": {
+                "id": "filters/items/properties/title",
+                "type": "string"
+            },
+            "type": {
+                "id": "filters/items/properties/type",
+                "items": {
+                    "id": "filters/items/properties/type/items",
+                    "type": "string",
+					"enum": ["normal", "magic", "rare", "unique", "gem", "currency", "divination card", "quest item", "prophecy", "relic"]
+                },
+                "type": "array"
+            }
+        },
+        "required": [
+            "title"
+        ],
+        "type": "object",
+		"additionalProperties": false
+    },
+    "type": "array"
+}
