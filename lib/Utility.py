@@ -14,8 +14,7 @@ class AppConfiguration(object):
     CONFIG_FNAME = "cfg\\app.cfg"
     section_names = ['Settings']
     defaults = {'league': 'Legacy',
-                'request_delay': 0.5,
-                'request_ahead_delay': 1,
+                'request_delay': 1,
                 'notification_duration': 4}
 
     def __init__(self):
@@ -77,3 +76,4 @@ def str2bool(val):
 
 def tmsg(msg):
     return "{}# {}".format(time.strftime("%H:%M:%S"), msg)
+

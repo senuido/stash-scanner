@@ -1,60 +1,76 @@
 [
 	{
-		"title": "Good Vinktar", 
-		"base": "Topaz Flask", 
-		"type": ["Unique"], 
-		"buyout": true,
-		"explicit": [
-			{
-				"expr": "Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect",
-				"values": [ 55 ]
+		"title": "Good Vinktar",
+		"criteria": {
+			"base": "Topaz Flask",
+			"type": ["Unique"],
+			"buyout": true,
+			"explicit": {
+				"mods": [
+					{
+						"expr": "Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect",
+						"values": [ 55 ]
+					},
+					{
+						"expr": "8[0-5]% increased Charges used"
+					}
+				]
 			},
-			{
-				"expr": "8[0-5]% increased Charges used"
-			}
-		],
-		"price": "100 chaos"
+			"price": "100 chaos"
+		}
 	},
 	{
 		"title": "24% Sadima's Touch", 
-		"base": "wool gloves", 
-		"type": ["relic"], 
-		"buyout": true,
-		"explicit": [
-			{
-				"expr": "24% increased Quantity of Items found"
-			}
-		],
-		"price": "2.5 exa"
+		"criteria": {
+			"base": "wool gloves", 
+			"type": ["relic"], 
+			"buyout": true,
+			"explicit": {
+				"mods": [
+					{
+						"expr": "24% increased Quantity of Items found"
+					}
+				]
+			},
+			"price": "2.5 exa"
+		}
 	},
 	{
 		"title": "Crystal Belt i84",
-		"base": "crystal belt",
-		"ilvl": 84,
-		"type": ["normal", "magic", "rare"],
-		"buyout": true,
-		"price": "6 exalted",
-		"corrupted": false
+		"criteria": {
+			"base": "crystal belt",
+			"ilvl": 84,
+			"type": ["normal", "magic", "rare"],
+			"buyout": true,
+			"price": "6 exalted",
+			"corrupted": false
+		}
 	},
 	{
 		"title": "Opal Ring i84",
-		"base": "opal ring",
-		"ilvl": 84,
-		"type": ["normal", "magic", "rare"],
-		"buyout": true,
-		"price": "1.8 exalted",
-		"corrupted": false
+		"criteria": {
+			"base": "opal ring",
+			"ilvl": 84,
+			"type": ["normal", "magic", "rare"],
+			"buyout": true,
+			"price": "1.8 exalted",
+			"corrupted": false
+		}
 	},
 	{
 		"title": "Cheap 6-Links",
-		"links": 6,
-		"buyout": true,
-		"price": "0.8 div"
+		"criteria": {
+			"links": 6,
+			"buyout": true,
+			"price": "0.8 div"
+		}
 	},
 	{
 		"title": "Expensive divination cards",
-		"type": ["divination card"],
-		"names": ["the fiend", "the doctor"],
-		"price": "5 ex"
+		"criteria": {
+			"type": ["divination card"],
+			"name": ["the fiend", "the doctor"],
+			"price": "5 ex"
+		}
 	}
 ]

@@ -94,7 +94,7 @@ class StashScanner:
         self.send_msg((ControlMsg.Stopped,), msg_type=MsgType.Control)
 
     def scan(self):
-        self.send_msg("Scanning started..")
+        self.send_msg("Scan initializing..")
 
         cm.load()
 
@@ -138,11 +138,16 @@ class StashScanner:
         ahead = False
         data = ""
 
+        self.send_msg("Scanning started")
+
         while self._running:
             try:
                 #self.send_tmsg("Requesting change id: {}".format(stateMgr.getChangeId()), LogLevel.Info)
                 self.send_msg((ControlMsg.UpdateID, stateMgr.getChangeId()), msg_type=MsgType.Control)
+
+                last_req = time.time()
                 data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
+                dl_time = time.time() - last_req
                 if data is None:
                     self.send_tmsg("Bad response while retrieving data from URL: {}".format(stashUrl), LogLevel.Error, MsgType.TextError)
                     time.sleep(2)
@@ -157,6 +162,7 @@ class StashScanner:
 
                 # Process if its the first time we're in this id
                 curId = stateMgr.getChangeId()
+                last_parse = time.time()
                 if lastId != curId:
                     parse_stashes(data, filters, stateMgr, self.handleResult)
                 else:
@@ -169,10 +175,13 @@ class StashScanner:
                 lastId = curId
                 stashUrl = POE_API.format(stateMgr.getChangeId())
 
-                if ahead:
-                    time.sleep(float(config.request_ahead_delay))
-                else:
-                    time.sleep(float(config.request_delay))
+                parse_time = time.time() - last_parse
+
+                delta = time.time() - last_req
+                sleep_time = max(float(config.request_delay) - delta, 0)
+                self.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s"
+                              .format(delta, dl_time, parse_time, sleep_time), LogLevel.Debug)
+                time.sleep(sleep_time)
 
             except pycurl.error as e:
                 errno, msg = e.args

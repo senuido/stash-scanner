@@ -83,17 +83,11 @@ class StateManager:
 
     def loadState(self):
         try:
-            # if self.fStateId is None or self.fStateId.closed:
-            #     self.fStateId = open(StateManager.STATE_ID_FNAME, "w+")
-            # else:
-            #     self.fStateId.seek(0)
-
             with open(StateManager.STATE_ID_FNAME, "r") as f:
                 self.changeid = f.readline().strip('\n')
-
         except FileNotFoundError:
             self.changeid = ""
-        #else:
+
         self.__loadStateItems()
 
     # if datetime.now() - self.lastClear > timedelta(minutes=60):

@@ -44,107 +44,134 @@ class Filter:
     FILTER_FNAME = "cfg\\filters.json"
     FILTER_SCHEMA_FNAME = "cfg\\filters.schema.json"
 
-    def __init__(self, criteria):
+    def __init__(self, title, criteria):
+        self.title = title
         self.criteria = criteria
 
     def __str__(self):
         # return self.criteria.__str__()
-        return json.dumps(self.criteria, sort_keys=True, cls=FilterDecoder)
+        return "{}: {}".format(self.title, json.dumps(self.criteria, sort_keys=True, cls=FilterDecoder))
 
     def checkItem(self, item, stash):
         for key in self.criteria:
             if key == "base" and self.criteria[key] not in item["typeLine"].lower():
                 return False
-            if key == "ilvl" and self.criteria[key] > item["ilvl"]:
+            elif key == "ilvl" and self.criteria[key] > item["ilvl"]:
                 return False
-            if key == "corrupted" and self.criteria[key] != item["corrupted"]:
+            elif key == "corrupted" and self.criteria[key] != item["corrupted"]:
                 return False
-            if key == "crafted" and self.criteria[key] != "craftedMods" in item:
+            elif key == "crafted" and self.criteria[key] != "craftedMods" in item:
                 return False
-            if key == "type" and _ITEM_TYPE[item["frameType"]] not in self.criteria[key]:
+            elif key == "type" and _ITEM_TYPE[item["frameType"]] not in self.criteria[key]:
                 return False
-            if key == "sockets" and self.criteria[key] > get_item_sockets(item):
+            elif key == "sockets" and self.criteria[key] > get_item_sockets(item):
                 return False
-            if key == "links" and self.criteria[key] > get_item_links(item):
+            elif key == "links" and self.criteria[key] > get_item_links(item):
                 return False
-            if key == "stacksize" and self.criteria[key] > get_item_stacksize(item):
+            elif key == "stacksize" and self.criteria[key] > get_item_stacksize(item):
+                return False
+            elif key == "modcount_min" and self.criteria[key] > get_item_modcount(item):
+                return False
+            elif key == "modcount_max" and self.criteria[key] < get_item_modcount(item):
                 return False
 
         for key in self.criteria:
             if key == "buyout" and self.criteria[key] != get_item_buyout(item, stash):
                 return False
-            if key == "price":
+
+            elif key == "price":
                 price = get_item_price(item, stash)
                 if price is not None:
                     amount, currency = price
                     if cm.convert(float(amount), currency) > cm.convert(*self.criteria[key]):
                         return False
 
-            if key == "name":
+            elif key == "name":
                 if not any(name in get_item_name(item).lower() for name in self.criteria[key]):
                     return False
 
         for key in self.criteria:
             if key == "implicit":
                 mods = [mod.lower() for mod in item.get("implicitMods", [])]
-                if len(self.criteria[key]) > len(mods): return False
-                for mod_regex in self.criteria[key]:
-                    if not Filter._checkmod(mod_regex['expr'], mod_regex.get('values', []), mods):
-                        return False
+                if not Filter._checkmods(self.criteria[key]['mods'], mods, self.criteria[key]['match_min'], self.criteria[key]['match_max']):
+                    return False
 
-            if key == "explicit":
+            elif key == "explicit":
                 mods = [mod.lower() for mod in item.get("explicitMods", [])]
-                if len(self.criteria[key]) > len(mods): return False
-                for mod_regex in self.criteria[key]:
-                    if not Filter._checkmod(mod_regex['expr'], mod_regex.get('values', []), mods):
-                        return False
+                if not Filter._checkmods(self.criteria[key]['mods'], mods, self.criteria[key]['match_min'], self.criteria[key]['match_max']):
+                    return False
 
-            if key == "mods":
+            elif key == "mods":
                 mods = []
                 for key_name in ("implicitMods", "explicitMods", "craftedMods", "enchantMods"):
                     mods += item.get(key_name, [])
 
-                if len(self.criteria[key]) > len(mods): return False
                 mods = [mod.lower() for mod in mods]
-                for mod_regex in self.criteria[key]:
-                    if not Filter._checkmod(mod_regex['expr'], mod_regex.get('values', []), mods):
-                        return False
+                if not Filter._checkmods(self.criteria[key]['mods'], mods, self.criteria[key]['match_min'], self.criteria[key]['match_max']):
+                    return False
 
         return True
 
+    def getTitle(self):
+        return self.title
+
     @staticmethod
-    def _checkmod(regex, filter_vals, mods):
-        for mod in mods:
-            match = regex.match(mod)
-            if match is not None:
-                if len(filter_vals) == 0:
+    def _checkmods(exprs, mods, match_min, match_max):
+
+        if match_min > len(mods) or match_max < match_min:
+            return False
+
+        matched = 0
+        for mod_expr in exprs:
+            expr_matched = False
+
+            expr = mod_expr['expr']
+            vals = mod_expr['values']
+            req = mod_expr['required']
+
+            for mod in mods:
+                if Filter._checkexpr(expr, vals, mod):
+                    expr_matched = True
+                    break
+
+            if expr_matched:
+                matched += 1
+
+                if matched > match_max:
+                    return False
+
+                if matched >= match_min:
+                    return True
+            elif req:
+                return False
+
+        return match_min <= matched <= match_max
+
+    @staticmethod
+    def _checkexpr(expr, vals, mod):
+        match = expr.match(mod)
+        if match is not None:
+            if len(vals) == 0:
+                return True
+
+            elif len(vals) == 1:
+                sum = 0
+                for mod_val in match.groups():
+                    sum += float(mod_val)
+
+                if sum / len(match.groups()) >= vals[0]:
                     return True
 
-                elif len(filter_vals) == 1:
-                    sum = 0
-                    for mod_val in match.groups():
-                        sum += float(mod_val)
+            elif len(vals) > 1 and len(vals) == len(match.groups()):
+                matched = True
+                for i, mod_val in enumerate(match.groups()):
+                    if vals[i] > mod_val:
+                        matched = False
+                        break
 
-                    if sum/len(match.groups()) >= filter_vals[0]:
-                        return True
-
-                elif len(filter_vals) > 1 and len(filter_vals) == len(match.groups()):
-                    matched = True
-                    for i, mod_val in enumerate(match.groups()):
-                        if filter_vals[i] > mod_val:
-                            matched = False
-                            break
-
-                    if matched:
-                        return True
-
-                # Maybe return false here, since if the pattern matched but value check failed it won't match again
-                # return False
-
+                if matched:
+                    return True
         return False
-
-    def getTitle(self):
-        return self.criteria.get("title", "Unnamed Filter")
 
     @staticmethod
     def loadfilters():
@@ -165,34 +192,46 @@ class Filter:
             validate(data, schema)
 
             for fltr in data:
-                if 'price' in fltr:
+                if not fltr.get('enabled', True):
+                    continue
+
+                crit = fltr['criteria']
+                if 'price' in crit:
                     price_valid = False
-                    match = _PRICE_REGEX.match(fltr['price'])
+                    match = _PRICE_REGEX.match(crit['price'])
                     if match is not None:
                         amount, currency = match.group(1, 2)
                         if currency in cm.whisper:  # cm.shorts
                             price_valid = True
-                            fltr['price'] = (float(amount), currency)
+                            crit['price'] = (float(amount), currency)
 
                     if not price_valid:
-                        raise AppException(FILTER_INVALID_PRICE.format(fltr['price']))
+                        raise AppException(FILTER_INVALID_PRICE.format(crit['price']))
 
-                for regex in fltr.get('mods', []):
-                    regex['expr'] = re.compile(regex['expr'])
+                for mod_key in ("implicit", "explicit", "mods"):
+                    if mod_key in crit:
+                        mods = crit[mod_key]
+                        for regex in mods['mods']:
+                            regex['expr'] = re.compile(regex['expr'])
+                            regex['required'] = regex.get('required', False)
+                            regex['values'] = regex.get('values', [])
 
-                for regex in fltr.get('implicit', []):
-                    regex['expr'] = re.compile(regex['expr'])
+                        if 'match_min' not in mods and 'match_max' not in mods:
+                            mods['match_min'] = len(mods['mods'])
+                            mods['match_max'] = len(mods['mods'])
+                        elif 'match_max' in mods and 'match_min' not in mods:
+                            mods['match_min'] = 0
+                        elif 'match_min' in mods and 'match_max' not in mods:
+                            mods['match_max'] = len(mods['mods'])
 
-                for regex in fltr.get('explicit', []):
-                    regex['expr'] = re.compile(regex['expr'])
+                        mods['mods'] = sorted(mods['mods'], key=lambda k: k['required'], reverse=True)
 
-                filters.append(Filter(fltr))
+                filters.append(Filter(fltr['title'], crit))
 
         except re.error as e:
             raise AppException(FILTER_INVALID_REGEX.format(e.pattern, e))
         except ValidationError as e:
-            # if e.validator == "required":
-            raise AppException(FILTER_VALIDATION_ERROR.format(e.message))
+            raise AppException(FILTER_VALIDATION_ERROR.format(Filter._get_verror_msg(e, data)))
         except SchemaError as e:
             raise AppException(FILTER_SCHEMA_ERROR.format(e.message))
         except json.decoder.JSONDecodeError as e:
@@ -201,6 +240,29 @@ class Filter:
             raise AppException(FILTER_FILE_MISSING.format(fname))
 
         return filters
+
+    @staticmethod
+    def _get_verror_msg(verror, data=None):
+        pathMsg = ""
+        for i, p in enumerate(verror.path):
+            if isinstance(p, int):
+                if i == 0:
+                    pathMsg += "filter #{}".format(p + 1)
+                    if data is not None:
+                        filter_name = data[p].get("title", "")
+                        if filter_name:
+                            pathMsg += " ({})".format(filter_name)
+                elif verror.path[i - 1] == "mods":
+                    pathMsg += " > mod #{}".format(p + 1)
+                elif verror.path[i - 1] == "values":
+                    pathMsg += " > value #{}".format(p + 1)
+            else:
+                pathMsg += " > {}".format(p)
+
+        if pathMsg:
+            return "{} >>>> {}".format(verror.message, pathMsg)
+
+        return verror.message
 
 def get_item_price_raw(item, stash):
     price = None
@@ -243,6 +305,10 @@ def get_item_buyout(item, stash):
 
 def get_item_stacksize(item):
     return item.get("stackSize", 1)
+
+
+def get_item_modcount(item):
+    return len(item.get('explicitMods', [])) + len(item.get('implicitMods', [])) + len(item.get('craftedMods', []))
 
 
 def get_item_price(item, stash):
