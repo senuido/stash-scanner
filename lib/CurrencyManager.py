@@ -92,13 +92,14 @@ class CurrencyManager:
         if tkey in overrides:
             self.apply_override(tkey, overrides.pop(tkey), overrides, path)
 
-        if tkey in path:
+        if tkey in path and tkey != key:
             raise AppException("Overrides contain a circular reference in path: {}".format(path))
 
         rate = self.convert(float(amount), short)
         if rate <= 0:
             raise AppException(INVALID_OVERRIDE_RATE.format(val, rate, key))
         self.rates[key] = self.convert(float(amount), short)
+        del path[-1]
 
     def apply_overrides(self):
         overrides = dict(self.overrides)
@@ -201,7 +202,16 @@ cm = CurrencyManager()
 
 if __name__ == "__main__":
     CurrencyManager.CURRENCY_FNAME = "..\\" + CurrencyManager.CURRENCY_FNAME
-    cm.load()
+
+    try:
+        cm.load()
+    except AppException as e:
+        print(e)
+
+    try:
+        cm.update()
+    except AppException as e:
+        print(e)
 
     print("Rates:")
 
