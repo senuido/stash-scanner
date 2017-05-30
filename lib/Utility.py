@@ -11,11 +11,12 @@ class AppException(Exception):
 
 
 class AppConfiguration(object):
-    CONFIG_FNAME = "cfg\\app.cfg"
+    CONFIG_FNAME = "cfg\\app.ini"
     section_names = ['Settings']
     defaults = {'league': 'Legacy',
                 'request_delay': 1,
-                'notification_duration': 4}
+                'notification_duration': 4,
+                'scan_mode': 'latest'}
 
     def __init__(self):
         parser = ConfigParser()

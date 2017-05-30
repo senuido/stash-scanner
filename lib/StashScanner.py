@@ -96,13 +96,18 @@ class StashScanner:
     def scan(self):
         self.send_msg("Scan initializing..")
 
-        cm.load()
+        try:
+            cm.load()
+            self.send_msg("Currency rates loaded successfully.")
+        except AppException as e:
+            self.send_msg(e, LogLevel.Error, MsgType.TextError)
 
         try:
             cm.update()
             self.send_msg("Currency rates updated successfully.")
         except AppException as e:
-            self.send_msg(e, LogLevel.Error, MsgType.TextError)
+            if cm.initialized:  # only print if load was successful to avoid spam
+                self.send_msg(e, LogLevel.Error, MsgType.TextError)
 
         if not cm.initialized:
             raise AppException("Failed to load currency information.")
@@ -120,14 +125,14 @@ class StashScanner:
         lastId = ""
         stateMgr = StateManager()
 
-        if stateMgr.getChangeId() == "":
-            self.send_msg("No state was used. Fetching latest id from ninja API")
+        if stateMgr.getChangeId() == "" or str(config.scan_mode).lower() == "latest":
+            self.send_msg("Fetching latest id from API..")
             data = getJsonFromURL(NINJA_API, max_attempts=3)
             if data is None:
-                raise AppException("Error retrieving latest id from ninja API, bad response")
+                raise AppException("Error retrieving latest id from API, bad response")
 
             if "nextChangeId" not in data:
-                raise AppException("Error retrieving id from ninja API, missing nextChangeId key")
+                raise AppException("Error retrieving id from API, missing nextChangeId key")
 
             stateMgr.saveState(data["nextChangeId"])
 
@@ -169,7 +174,7 @@ class StashScanner:
                     parse_next_id(data, stateMgr)
 
                     if not ahead:
-                        self.send_msg("Reached the end of the river, slowing down request rate..")
+                        self.send_msg("Reached the end of the river..")
                         ahead = True
 
                 lastId = curId

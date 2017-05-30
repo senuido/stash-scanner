@@ -18,8 +18,8 @@ _ITEM_TYPE = {0: 'normal',
               8: 'prophecy',
               9: 'relic'}
 
-_PRICE_REGEX = re.compile('\s*([0-9]+|[0-9]+\.[0-9]+)\s+([a-z]+)')
-_BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z]+)')
+_PRICE_REGEX = re.compile('\s*([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
+_BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 _LOCALIZATION_REGEX = re.compile("<<.*>>")
 
 FILTER_FILE_MISSING = "Missing file: {}"
@@ -200,7 +200,7 @@ class Filter:
                     price_valid = False
                     match = _PRICE_REGEX.match(crit['price'])
                     if match is not None:
-                        amount, currency = match.group(1, 2)
+                        amount, currency = match.groups()
                         if currency in cm.whisper:  # cm.shorts
                             price_valid = True
                             crit['price'] = (float(amount), currency)

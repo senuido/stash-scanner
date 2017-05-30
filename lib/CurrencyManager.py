@@ -1,8 +1,13 @@
 import json
 import pycurl
 
+import re
+
 from lib.Utility import getJsonFromURL, AppException, config
 
+_PRICE_REGEX = re.compile('\s*([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
+INVALID_OVERRIDE = "Invalid override price \'{}\' for {}"
+INVALID_OVERRIDE_RATE = "Invalid override rate \'{}\' = {} for {}. Rate must be a positive number"
 
 class CurrencyManager:
     CURRENCY_FNAME = "cfg\\currency.json"
@@ -25,8 +30,8 @@ class CurrencyManager:
         'vaal': 'vaal',
         'chisel': 'chisel',
         'gcp': 'gcp',
-        'mir': 'mirror',
-        # 'other': 'other'
+        'eternal': 'eternal',
+        'mir': 'mirror'
     }
 
     def __init__(self):
@@ -36,7 +41,15 @@ class CurrencyManager:
         self.overrides = {}
         self.initialized = False
 
-        self.load()
+    @classmethod
+    def fromData(cls, shorts, rates, whisper, overrides):
+        ncm = cls()
+        ncm.shorts = shorts
+        ncm.rates = rates
+        ncm.whisper = whisper
+        ncm.overrides = overrides
+
+        return ncm
 
     def convert(self, amount, short):
         if short in self.shorts:
@@ -53,21 +66,79 @@ class CurrencyManager:
 
             self.overrides = data['overrides']
             self.rates = data['rates']
-            self.rates.update(self.overrides)
+            self.shorts = data['shorts']
+            self.whisper = data['whisper']
+
+            self.apply_overrides()
 
             self.initialized = True
         except FileNotFoundError:
+            pass
+
+    def apply_override(self, key, val, overrides, path=None):
+        if path is None:
+            path = []
+        path.append(key)
+
+        price = CurrencyManager.priceFromString(str(val))
+        if price is None:
+            raise AppException(INVALID_OVERRIDE.format(val, key))
+
+        amount, short = price
+        if short not in self.shorts:
+            raise AppException(INVALID_OVERRIDE.format(val, key))
+
+        tkey = self.shorts[short]
+        if tkey in overrides:
+            self.apply_override(tkey, overrides.pop(tkey), overrides, path)
+
+        if tkey in path:
+            raise AppException("Overrides contain a circular reference in path: {}".format(path))
+
+        rate = self.convert(float(amount), short)
+        if rate <= 0:
+            raise AppException(INVALID_OVERRIDE_RATE.format(val, rate, key))
+        self.rates[key] = self.convert(float(amount), short)
+
+    def apply_overrides(self):
+        overrides = dict(self.overrides)
+
+        try:
+            while True:
+                self.apply_override(*overrides.popitem(), overrides)
+        except AppException:
+            raise
+        except KeyError:
             pass
 
     def save(self):
         data = {}
         data['overrides'] = self.overrides
         data['rates'] = self.rates
+        data['shorts'] = self.shorts
+        data['whisper'] = self.whisper
 
         with open(CurrencyManager.CURRENCY_FNAME, "w", encoding="utf-8", errors="replace") as f:
-            json.dump(data, f, indent=4, separators=(',', ': '))
+            json.dump(data, f, indent=4, separators=(',', ': '), sort_keys=True)
 
-    def update(self):
+    @staticmethod
+    def priceFromString(price):
+        match = _PRICE_REGEX.match(price.lower())
+        if match is not None:
+            return match.groups()
+        return None
+
+    @staticmethod
+    def update():
+        global cm
+        ncm = CurrencyManager.fromAPI()
+        ncm.save()
+        ncm.apply_overrides()
+        ncm.initialized = True
+        cm = ncm
+
+    @staticmethod
+    def fromAPI():
         url = CurrencyManager.CURRENCY_API.format(config.league)
 
         try:
@@ -96,27 +167,25 @@ class CurrencyManager:
 
             shorts = {}
             for currency in currencies:
-                #if 'value' in currencies[currency]:
+                # if 'value' in currencies[currency]:
                 for short in currencies[currency]['shorts']:
                     shorts[short] = currency
 
             whisper = {}
             for currency in CurrencyManager.CURRENCY_DISPLAY_BASE:
                 if currency not in shorts:
-                    print("{} not in shorts".format(currency))
+                    # print("{} not in shorts".format(currency))
                     whisper[currency] = CurrencyManager.CURRENCY_DISPLAY_BASE[currency]
                 else:
                     for short in currencies[shorts[currency]]['shorts']:
                         whisper[short] = CurrencyManager.CURRENCY_DISPLAY_BASE[currency]
 
-            self.rates = rates
-            self.shorts = shorts
-            self.whisper = whisper
+            ncm = CurrencyManager.fromData(shorts, rates, whisper, cm.overrides)
 
-            self.save()
-            self.rates.update(self.overrides)
-
-            self.initialized = True
+            # test overrides work, kinda hacky, could just add another dictionary for original rates
+            org_rates = dict(rates)
+            ncm.apply_overrides()
+            ncm.rates = org_rates
         except pycurl.error as e:
             raise AppException("Currency update failed. Connection error: {}".format(e))
         except AppException:
@@ -125,11 +194,14 @@ class CurrencyManager:
             raise AppException("Currency update failed. Parsing error: {}".format(e))
         except Exception as e:
             raise AppException("Currency update failed. Unexpected error: {}".format(e))
+        else:
+            return ncm
 
 cm = CurrencyManager()
 
 if __name__ == "__main__":
-    cm.update()
+    CurrencyManager.CURRENCY_FNAME = "..\\" + CurrencyManager.CURRENCY_FNAME
+    cm.load()
 
     print("Rates:")
 

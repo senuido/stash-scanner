@@ -52,8 +52,8 @@ class AppGUI(Tk):
 
         self.btn_toggle = Button(self.upper_frame, text="Stop", command=self.toggle_scan)
         self.btn_toggle.grid(row=0, column=3, pady=5, sticky='ns')
-        # self.btn_dbg = Button(self.upper_frame, text="Debug", command=self.set_log_debug, )
-        # self.btn_dbg.grid(row=0, column=4, pady=5, sticky='ns')
+        self.btn_dbg = Button(self.upper_frame, text="Debug", command=self.set_log_debug)
+        self.btn_dbg.grid(row=0, column=4, pady=5, sticky='ns')
 
         self.frame = Frame(self, relief='sunken')
         self.frame.grid(row=1, column=0, sticky='nsew')
