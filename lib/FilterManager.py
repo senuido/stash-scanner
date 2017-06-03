@@ -3,6 +3,8 @@ import json
 import re
 
 import pycurl
+import threading
+
 from jsonschema import validate, ValidationError, SchemaError
 from lib.Utility import config, AppException, getJsonFromURL
 from lib.CurrencyManager import cm
@@ -64,7 +66,7 @@ class FilterManager:
         self.overrides = {}
         self.default_override = 0.9
         self.price_threshold = '1 exalted'
-
+        self.filters_lock = threading.Lock()
         self.loadConfig()
 
     def loadConfig(self):
@@ -130,9 +132,11 @@ class FilterManager:
 
                     filters.append(Filter.fromData(title, crit, category, False))
 
-            self.autoFilters = filters
+            with self.filters_lock:
+                self.autoFilters = filters
+                self.initAutoFilters()
+
             self.saveAutoFilters()
-            self.initAutoFilters()
             self.saveConfig()
         except pycurl.error as e:
             raise AppException("Filters update failed. Connection error: {}".format(e))
@@ -229,6 +233,11 @@ class FilterManager:
 
     def getEnabledFilters(self):
         return [fltr for fltr in self.getFilters() if fltr.enabled]
+
+    def onCurrencyUpdate(self):
+        with self.filters_lock:
+            for fltr in self.getFilters():
+                fltr.compute()
 
     @staticmethod
     def isOverrideValid(flt_name, override):

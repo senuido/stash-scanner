@@ -111,6 +111,13 @@ class Filter:
         except re.error as e:
             raise AppException(FILTER_INVALID_REGEX.format(e.pattern, e))
 
+        self.compute()
+
+        self.crit_ordered = sorted(crit.keys(), key=lambda k: _FILTER_PRIO[k])
+
+    def compute(self):
+        crit = self.criteria
+
         if 'type' in crit:
             types = []
             for itype in crit['type']:
@@ -132,7 +139,6 @@ class Filter:
             if not price_valid:
                 raise AppException(FILTER_INVALID_PRICE.format(crit['price']))
 
-        self.crit_ordered = sorted(crit.keys(), key=lambda k: _FILTER_PRIO[k])
 
     @classmethod
     def fromData(cls, title, criteria, category, enabled=True):
@@ -251,7 +257,9 @@ class Filter:
         ex_val = cm.convert(1, 'exalted')
 
         if 0 < ex_val <= self.comp['price']:
-            price = '{:.2f} ex'.format(self.comp['price']/ex_val)
+            val = round(self.comp['price']/ex_val,2)
+            if val == int(val): val = int(val)
+            price = '{} ex'.format(val)
         else:
             price = '{:.0f}c'.format(self.comp['price'])
 

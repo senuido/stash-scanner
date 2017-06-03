@@ -5,6 +5,9 @@ import time
 import traceback
 import winsound
 from enum import IntEnum
+from threading import Event
+
+import lib.UpdateThread as ut
 
 from lib.FilterManager import FilterManager
 from lib.ItemHelper import *
@@ -46,7 +49,7 @@ class StashScanner:
         self.msg_queue = queue
         self.notifier = NotifyThread()
         self.log_level = LogLevel.Error
-        self._running = False
+        self.stopped = Event()
 
     def set_log_level(self, log_level):
         self.log_level = log_level
@@ -77,10 +80,9 @@ class StashScanner:
         self.send_msg(whisperMsg)
 
     def stop(self):
-        self._running = False
+        self.stopped.set()
 
     def start(self):
-        self._running = True
 
         try:
             self.scan()
@@ -163,14 +165,17 @@ class StashScanner:
 
         stashUrl = POE_API.format(stateMgr.getChangeId())
 
+        updater = ut.UpdateThread(self.stopped, fm, 60, self)
+        updater.start()
         self.notifier.start()
+
         c = pycurl.Curl()
         ahead = False
         data = ""
+        sleep_time = 0
 
         self.send_msg("Scanning started")
-
-        while self._running:
+        while not self.stopped.wait(sleep_time):
             try:
                 #self.send_tmsg("Requesting change id: {}".format(stateMgr.getChangeId()), LogLevel.Info)
                 self.send_msg((ControlMsg.UpdateID, stateMgr.getChangeId()), msg_type=MsgType.Control)
@@ -181,21 +186,23 @@ class StashScanner:
                 dl_time = time.time() - last_req
                 if data is None:
                     self.send_tmsg("Bad response while retrieving data from URL: {}".format(stashUrl), LogLevel.Error, MsgType.TextError)
-                    time.sleep(2)
+                    sleep_time = 2
                     continue
 
                 if "error" in data:
                     self.send_tmsg("JSON error response: {}".format(data["error"]))
                     # c.close()
                     c = pycurl.Curl()
-                    time.sleep(10)
+                    sleep_time = 10
                     continue
 
                 # Process if its the first time we're in this id
                 curId = stateMgr.getChangeId()
 
                 last_parse = time.time()
-                filters = fm.getEnabledFilters()
+                with fm.filters_lock:
+                    filters = fm.getEnabledFilters()
+
                 if lastId != curId:
                     data_count = parse_stashes(data, filters, stateMgr, self.handleResult)
                 else:
@@ -215,7 +222,6 @@ class StashScanner:
                 self.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s, "
                               "Tabs: {}, League tabs: {}, Items: {}"
                               .format(delta, dl_time, parse_time, sleep_time, *data_count), LogLevel.Debug)
-                time.sleep(sleep_time)
 
             except pycurl.error as e:
                 errno, msg = e.args
@@ -225,7 +231,7 @@ class StashScanner:
 
                 c.close()
                 c = pycurl.Curl()
-                time.sleep(5)
+                sleep_time = 5
                 continue
             except Exception as e:
                 self.send_msg("Unexpected error occurred: {}".format(e), LogLevel.Error, MsgType.TextError)
@@ -236,7 +242,7 @@ class StashScanner:
 
                 c.close()
                 c = pycurl.Curl()
-                time.sleep(10)
+                sleep_time = 10
 
 
 def logerror(msg):
