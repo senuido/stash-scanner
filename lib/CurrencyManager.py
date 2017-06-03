@@ -8,9 +8,11 @@ from lib.Utility import getJsonFromURL, AppException, config
 _PRICE_REGEX = re.compile('\s*([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 INVALID_OVERRIDE = "Invalid override price \'{}\' for {}"
 INVALID_OVERRIDE_RATE = "Invalid override rate \'{}\' = {} for {}. Rate must be a positive number"
+INVALID_PRICE = "Invalid price {}"
 
 class CurrencyManager:
-    CURRENCY_FNAME = "cfg\\currency.json"
+    CURRENCY_FNAME = "tmp\\currency.json"
+    CURRENCY_CFG_FNAME = "cfg\\currency-config.json"
     CURRENCY_API = "http://poeninja.azureedge.net/api/Data/GetCurrencyOverview?league={}"
 
     CURRENCY_DISPLAY_BASE = {
@@ -128,6 +130,13 @@ class CurrencyManager:
         if match is not None:
             return match.groups()
         return None
+
+    def isPriceValid(self, price_str):
+        price = CurrencyManager.priceFromString(price_str)
+        if price is None:
+            return False
+        return price[1] in self.shorts
+
 
     @staticmethod
     def update():

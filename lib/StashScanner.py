@@ -6,6 +6,7 @@ import traceback
 import winsound
 from enum import IntEnum
 
+from lib.FilterManager import FilterManager
 from lib.ItemHelper import *
 from lib.NotifyThread import NotifyThread
 from lib.StateManager import StateManager
@@ -18,7 +19,7 @@ POE_API = "http://api.pathofexile.com/public-stash-tabs?id={}"
 
 ERROR_FNAME = "log\\error.log"
 ERROR_JSON_FNAME = "log\\error.json"
-ALERT_FNAME = "cfg\\alert.wav"
+ALERT_FNAME = "res\\alert.wav"
 
 
 class LogLevel(IntEnum):
@@ -69,7 +70,7 @@ class StashScanner:
         size_str = "" if size == 1 else size
 
         msg = "{} {}\n{}".format(size_str, get_item_name(item), price).strip()
-        self.notifier.send((fltr.getTitle(), msg, whisperMsg))
+        self.notifier.send((fltr.getDisplayTitle(), msg, whisperMsg))
         winsound.PlaySound(ALERT_FNAME, winsound.SND_ASYNC | winsound.SND_FILENAME)
 
         self.send_tmsg(get_item_info(item, stash))
@@ -95,6 +96,7 @@ class StashScanner:
 
     def scan(self):
         self.send_msg("Scan initializing..")
+        os.makedirs('tmp', exist_ok=True)
 
         try:
             cm.load()
@@ -112,11 +114,34 @@ class StashScanner:
         if not cm.initialized:
             raise AppException("Failed to load currency information.")
 
-        filters = Filter.loadfilters()
-        if not len(filters):
-            raise AppException("No filters were loaded.")
+        fm = FilterManager()
 
-        self.send_msg("{} filters were loaded.".format(len(filters)))
+        filterFallback = False
+
+        try:
+            self.send_msg("Generating filters from API..")
+            fm.fetchFromAPI()
+        except AppException as e:
+            filterFallback = True
+            self.send_msg(e, LogLevel.Error, MsgType.TextError)
+
+        if filterFallback:
+            try:
+                self.send_msg("Loading generated filters from a local copy..")
+                fm.loadAutoFilters()
+            except AppException as e:
+                self.send_msg(e, LogLevel.Error, MsgType.TextError)
+
+        self.send_msg("Loading user filters..")
+        fm.loadUserFilters()
+
+        filters = fm.getEnabledFilters()
+
+        if not len(filters):
+            raise AppException("No active filters loaded")
+
+        self.send_msg("{} filters were loaded. {} filters are active."
+                      .format(len(fm.getFilters()), len(filters)))
 
         for fltr in filters:
             self.send_msg(fltr)
@@ -149,6 +174,7 @@ class StashScanner:
             try:
                 #self.send_tmsg("Requesting change id: {}".format(stateMgr.getChangeId()), LogLevel.Info)
                 self.send_msg((ControlMsg.UpdateID, stateMgr.getChangeId()), msg_type=MsgType.Control)
+                data_count = (0, 0, 0)
 
                 last_req = time.time()
                 data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
@@ -167,9 +193,11 @@ class StashScanner:
 
                 # Process if its the first time we're in this id
                 curId = stateMgr.getChangeId()
+
                 last_parse = time.time()
+                filters = fm.getEnabledFilters()
                 if lastId != curId:
-                    parse_stashes(data, filters, stateMgr, self.handleResult)
+                    data_count = parse_stashes(data, filters, stateMgr, self.handleResult)
                 else:
                     parse_next_id(data, stateMgr)
 
@@ -184,8 +212,9 @@ class StashScanner:
 
                 delta = time.time() - last_req
                 sleep_time = max(float(config.request_delay) - delta, 0)
-                self.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s"
-                              .format(delta, dl_time, parse_time, sleep_time), LogLevel.Debug)
+                self.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s, "
+                              "Tabs: {}, League tabs: {}, Items: {}"
+                              .format(delta, dl_time, parse_time, sleep_time, *data_count), LogLevel.Debug)
                 time.sleep(sleep_time)
 
             except pycurl.error as e:

@@ -7,8 +7,8 @@ def getDateTimeFromString(datestr):
     return datetime.strptime(datestr, '%Y-%m-%dT%H:%M:%S.%f')
 
 class StateManager:
-    STATE_ID_FNAME = "cfg\\stateid.dat"
-    STATE_FNAME = "cfg\\state.dat"
+    STATE_ID_FNAME = "tmp\\stateid.dat"
+    STATE_FNAME = "tmp\\state.dat"
 
     def __init__(self):
         self.items = {}

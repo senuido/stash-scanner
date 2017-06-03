@@ -67,10 +67,74 @@
 	},
 	{
 		"title": "Expensive divination cards",
+		"enabled": false,
 		"criteria": {
 			"type": ["divination card"],
 			"name": ["the fiend", "the doctor"],
 			"price": "5 ex"
+		}
+	},
+	{
+		"title": "4 Mod Jewel",
+		"enabled": false,
+		"criteria": {
+			"type": ["rare"],
+			"base": "jewel",
+			"modcount_min": 4,
+			"explicit": {
+					"match_min": 3,
+					"mods": [
+						{
+							"expr": "\\+?[0-9]+% to critical strike multiplier(?:$|.*(?:skills|spells))",
+							"required": true
+						},
+						{
+							"expr": "\\+?[0-9]+% to critical strike multiplier(?:$|.*(?:skills|spells))",
+							"required": true
+						},
+						{
+							"expr": "[0-9]+% increased fire damage$"
+						},
+						{
+							"expr": "[0-9]+% increased spell damage while holding a shield"
+						},
+						{
+							"expr": "\\+[0-9]+% to Critical Strike Multiplier with fire Skills"
+						},
+						{
+							"expr": "\\+[0-9]+% to Critical Strike Multiplier with cold Skills"
+						},
+						{
+							"expr": "\\+[0-9]+% to Critical Strike Multiplier with lightning Skills"
+						},
+						
+						{
+							"expr": "[0-9]+% increased Attack Speed while holding a Shield"
+						},
+						{
+							"expr": "[0-9]+% increased Attack Speed with (daggers|maces)"
+						},
+						{
+							"expr": "[0-9]+% increased Attack Speed with One Handed Melee Weapons"
+						},
+						
+						{
+							"expr": "[0-9]+% increased spell damage$"
+						},
+						{
+							"expr": "\\+[0-9]+% to critical strike multiplier for spells"
+						},
+						{
+							"expr": "\\+[0-9]+% to critical strike multiplier with elemental skills"
+						},
+						{
+							"expr": "[0-9]+% increased projectile damage$"
+						},
+						{
+							"expr": "[0-9]+% increased area damage$"
+						}
+					]
+			}
 		}
 	}
 ]

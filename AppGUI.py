@@ -89,11 +89,12 @@ class AppGUI(Tk):
     def start_scan(self):
         self.scanner = StashScanner(self.msg_queue)
         self.scan_thread = Thread(target=self.scanner.start)
+        self.scan_thread.is_alive()
         self.scan_thread.start()
 
     def stop_scan(self):
         self.scanner.stop()
-        # self.scan_thread.join()
+        #self.scan_thread.join()
 
     def set_log_normal(self):
         self.scanner.set_log_level(LogLevel.Undefined)
