@@ -1,4 +1,3 @@
-import json
 import os
 import pycurl
 import time
@@ -14,6 +13,7 @@ from lib.ItemHelper import *
 from lib.NotifyThread import NotifyThread
 from lib.StateManager import StateManager
 from lib.Utility import config, AppException, getJsonFromURL, tmsg
+
 
 # API URLS
 NINJA_API = "http://api.poe.ninja/api/Data/GetStats"
@@ -137,7 +137,10 @@ class StashScanner:
         self.send_msg("Loading user filters..")
         fm.loadUserFilters()
 
-        filters = fm.getEnabledFilters()
+        self.send_msg("Compiling filters..")
+        fm.compileFilters()
+
+        filters = fm.getActiveFilters()
 
         if not len(filters):
             raise AppException("No active filters loaded")
@@ -165,7 +168,7 @@ class StashScanner:
 
         stashUrl = POE_API.format(stateMgr.getChangeId())
 
-        updater = ut.UpdateThread(self.stopped, fm, 60, self)
+        updater = ut.UpdateThread(self.stopped, fm, 5*60, self)
         updater.start()
         self.notifier.start()
 
@@ -173,6 +176,7 @@ class StashScanner:
         ahead = False
         data = ""
         sleep_time = 0
+        num_cores = cpu_count()
 
         self.send_msg("Scanning started")
         while not self.stopped.wait(sleep_time):
@@ -200,11 +204,11 @@ class StashScanner:
                 curId = stateMgr.getChangeId()
 
                 last_parse = time.time()
-                with fm.filters_lock:
-                    filters = fm.getEnabledFilters()
+                #with fm.filters_lock:
+                filters = fm.getActiveFilters()
 
                 if lastId != curId:
-                    data_count = parse_stashes(data, filters, stateMgr, self.handleResult)
+                    data_count = parse_stashes_parallel(data, filters, stateMgr, self.handleResult, num_cores)
                 else:
                     parse_next_id(data, stateMgr)
 

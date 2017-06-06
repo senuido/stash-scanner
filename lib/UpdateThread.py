@@ -18,12 +18,14 @@ class UpdateThread(Thread):
     def run(self):
         while not self.stopped.wait(self.interval):
             scanner = self.scanner()
+            compile_filters = False
             try:
                 try:
                     cm.update()
-                    self.fm.onCurrencyUpdate()
+                    # self.fm.onCurrencyUpdate()
                     if scanner:
                         scanner.send_msg("Currency rates updated successfully.")
+                        compile_filters = True
                 except AppException as e:
                     if scanner:
                         scanner.send_msg(e, lib.StashScanner.LogLevel.Error, lib.StashScanner.MsgType.TextError)
@@ -32,9 +34,13 @@ class UpdateThread(Thread):
                     self.fm.fetchFromAPI()
                     if scanner:
                         scanner.send_msg("Filters from API updated successfully.")
+                    compile_filters = True
                 except AppException as e:
                     if scanner:
                         scanner.send_msg(e, lib.StashScanner.LogLevel.Error, lib.StashScanner.MsgType.TextError)
+
+                if compile_filters:
+                    self.fm.compileFilters()
             except Exception as e:
                 if scanner:
                     scanner.send_msg("Unexpected error while updating: {}".format(e))

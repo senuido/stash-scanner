@@ -5,13 +5,11 @@ import re
 import pycurl
 import threading
 
+import itertools
 from jsonschema import validate, ValidationError, SchemaError
-from lib.Utility import config, AppException, getJsonFromURL
+from lib.Utility import config, AppException, getJsonFromURL, str2bool
 from lib.CurrencyManager import cm
-from lib.ItemHelper import Filter, _ITEM_TYPE, FilterEncoder
-
-_OVERRIDE_REGEX = re.compile('\s*([+\-=]?)\s*(.+)')
-_NUMBER_REGEX = re.compile('[0-9]+(?:\.[0-9]+)?$')
+from lib.ItemHelper import Filter, _ITEM_TYPE, FilterEncoder, CompiledFilter
 
 FILTER_FILE_MISSING = "Missing file: {}"
 FILTER_INVALID_JSON = "Error decoding JSON: {} in file {}"
@@ -61,23 +59,29 @@ class FilterManager:
     def __init__(self):
         self.userFilters = []
         self.autoFilters = []
+        self.compiledFilters = []
+        self.activeFilters = []
 
         self.categories = {}
-        self.overrides = {}
-        self.default_override = 0.9
         self.price_threshold = '1 exalted'
+        self.default_price_override = "* 1"
+        self.price_overrides = {}
+        self.state_overrides = {}
+
         self.filters_lock = threading.Lock()
         self.loadConfig()
+        self.saveConfig()
 
     def loadConfig(self):
         try:
             with open(_FILTERS_CFG_FNAME, encoding="utf-8", errors="replace") as f:
                 data = json.load(f)
 
-            self.categories = data['categories']
-            self.overrides = data['overrides']
-            self.default_override = data['default_override']
-            self.price_threshold = data['price_threshold']
+            self.categories = data.get('categories', {})
+            self.price_threshold = data.get('price_threshold', '1 exalted')
+            self.default_price_override = data.get('default_price_override', 1)
+            self.price_overrides = data.get('price_overrides', {})
+            self.state_overrides = data.get('state_overrides', {})
 
             if not cm.isPriceValid(self.price_threshold):
                 raise AppException(FM_INVALID_PRICE_THRESHOLD.format(self.price_threshold))
@@ -89,32 +93,37 @@ class FilterManager:
 
     def saveConfig(self):
         data = {
-            'default_override': self.default_override,
+            'default_price_override': self.default_price_override,
             'price_threshold': self.price_threshold,
             'categories': self.categories,
-            'overrides': self.overrides
+            'price_overrides': self.price_overrides,
+            'state_overrides': self.state_overrides
         }
 
         #os.makedirs(os.path.dirname(_AUTO_CFG_FNAME), exist_ok=True)
         with open(_FILTERS_CFG_FNAME, mode="w", encoding="utf-8", errors="replace") as f:
-            json.dump(data, f, indent=4, separators=(',', ': '), sort_keys=False)
+            json.dump(data, f, indent=4, separators=(',', ': '), sort_keys=True)
 
     def fetchFromAPI(self):
         try:
             filters = []
-
+            c = pycurl.Curl()
+            updateConfig = False
             for url in _URLS:
                 furl = url.format(config.league)
-                data = getJsonFromURL(furl)
+                data = getJsonFromURL(furl, handle=c, max_attempts=3)
+                if data is None:
+                    raise AppException("Filters update failed. Bad response from server")
 
                 category = re.match(".*Get(.*)Overview", furl).group(1).lower()
 
                 if category not in self.categories:
                     self.categories[category] = True
+                    updateConfig = True
 
                 for item in data['lines']:
                     crit = {}
-                    crit['price'] = "{} exalted".format(float(item['exaltedValue']))
+                    crit['price'] = "{} exalted".format(float(item.get('exaltedValue', 0)))
                     crit['name'] = [item['name']]
                     crit['type'] = [_ITEM_TYPE[item['itemClass']]]
                     crit['buyout'] = True
@@ -130,14 +139,14 @@ class FilterManager:
                         else:
                             crit['explicit'] = {'mods': [{'expr': _VARIANTS[item['variant']]}]}
 
-                    filters.append(Filter.fromData(title, crit, category, False))
+                    #fltr.validate()
+                    filters.append(Filter(title, crit, False, category, id=title.lower()))
 
-            with self.filters_lock:
-                self.autoFilters = filters
-                self.initAutoFilters()
-
+            self.autoFilters = filters
             self.saveAutoFilters()
-            self.saveConfig()
+
+            if updateConfig:
+                self.saveConfig()
         except pycurl.error as e:
             raise AppException("Filters update failed. Connection error: {}".format(e))
         except (KeyError, ValueError) as e:
@@ -149,111 +158,137 @@ class FilterManager:
     def loadUserFilters(self):
         try:
             self.userFilters = FilterManager.loadFiltersFromFile(_USER_FILTERS_FNAME)
+        except AppException:
+            raise
         except Exception as e:
             raise AppException("Loading user filters failed. Unexpected error: {}".format(e))
 
     def loadAutoFilters(self):
         try:
             self.autoFilters = FilterManager.loadFiltersFromFile(_AUTO_FILTERS_FNAME)
-            self.initAutoFilters()
         except AppException:
             raise
         except Exception as e:
-            self.autoFilters = []
             raise AppException("Loading generated filters failed. Unexpected error: {}".format(e))
 
     def saveAutoFilters(self):
         with open(_AUTO_FILTERS_FNAME, mode="w", encoding="utf-8", errors="replace") as f:
             json.dump(self.autoFilters, f, indent=4, separators=(',', ': '), cls=FilterEncoder)
 
-    def initAutoFilters(self):
+    def compileFilters(self):
         tamount, tshort = cm.priceFromString(self.price_threshold)
         min_val = cm.convert(float(tamount), tshort)
 
         disabled_cat = [cat for cat, enabled in self.categories.items() if not enabled]
 
+        filters = []
+
         for fltr in self.autoFilters:
-            fltr.Init()
+            comp = self.compileFilter(fltr)
+            if comp is None:
+                print('Failed compiling filter {}'.format(fltr.getDisplayTitle()))
+            else:
+                cf = CompiledFilter(fltr, comp)
+                cf.enabled = comp.get('price', -1) >= min_val and fltr.category not in disabled_cat
+                filters.append(cf)
 
-            # enable if above threshold and not in disabled category
-            # fltr.enabled = cm.convert(*fltr.criteria['price']) >= min_val and fltr.category not in disabled_cat
-            fltr.enabled = fltr.comp['price'] >= min_val and fltr.category not in disabled_cat
+        self.applyOverrides(filters)
 
-        self.applyOverrides()
+        for fltr in self.userFilters:
+            comp = self.compileFilter(fltr)
+            if comp is None:
+                print('Failed compiling filter {}'.format(fltr.getDisplayTitle()))
+            else:
+                cf = CompiledFilter(fltr, comp)
+                cf.enabled = fltr.enabled and fltr.category not in disabled_cat
+                filters.append(cf)
 
-    def applyOverrides(self):
-        for fltr in self.autoFilters:
-            override = self.default_override
+        active_filters = [fltr for fltr in filters if fltr.enabled]
 
+        with self.filters_lock:
+            self.activeFilters = active_filters
+            self.compiledFilters = filters
+
+    def applyOverrides(self, filters):
+        for cf in filters:
             # title = re.match('(.+) \(.+\)', fltr.title.lower()).group(1)
-            for flt_name in self.overrides:
-                if flt_name.lower() == fltr.title.lower():
-                    override = self.overrides[flt_name]
+
+            override = self.default_price_override
+            for id in self.price_overrides:
+                if id.lower() == cf.fltr.id:
+                    override = self.price_overrides[id]
                     break
 
-            # get filter price in chaos
-            # flt_price_val = cm.convert(*fltr.criteria['price'])
-            flt_price_val = fltr.comp['price']
+            state = cf.enabled
+            for id in self.state_overrides:
+                if id.lower() == cf.fltr.id:
+                    state = self.state_overrides[id]
 
-            # get opr
-            opr, price = _OVERRIDE_REGEX.match(str(override)).groups()
-            new_price = 0
+            cf.enabled = state
+            cf.comp['price'] = Filter.compilePrice(override, cf.comp['price'])
 
-            # factor
-            if opr == '':
-                new_price = flt_price_val * float(price)
-            else:
-                # get override value
-                amount, short = cm.priceFromString(price)
-                override_val = cm.convert(float(amount), short)
-
-                if opr == '+':
-                    new_price = flt_price_val + override_val
-                elif opr == '-':
-                    new_price = flt_price_val - override_val
-                elif opr == '=':
-                    new_price = override_val
-
-            # fltr.criteria['price'] = (round(new_price, 2), 'chaos')
-            fltr.comp['price'] = round(new_price, 2)
-
-            if new_price <= 0:
-                fltr.enabled = False
+            if cf.comp['price'] <= 0:
+                cf.enabled = False
 
     def validateOverrides(self):
-        if not self.isOverrideValid("default", self.default_override):
-            raise AppException("Invalid default filter override {}".format(self.default_override))
+        for key, state in self.state_overrides.items():
+            if not isinstance(state, bool):
+                try:
+                    self.state_overrides[key] = str2bool(str(state))
+                except ValueError:
+                    raise AppException("Invalid state override '{}' for {}. Must be a boolean.".format(state, key))
 
-        for key, override in self.overrides.items():
-            if not self.isOverrideValid(key, override):
-                raise AppException("Invalid filter override {} for {}".format(override, key))
+        if not Filter.isPriceValid(self.default_price_override):
+            raise AppException("Invalid default price override {}".format(self.default_price_override))
+
+        for key, override in self.price_overrides.items():
+            if not Filter.isPriceValid(override):
+                raise AppException("Invalid price override '{}' for {}".format(override, key))
 
     def getFilters(self):
-        return self.userFilters + self.autoFilters
+        return self.compiledFilters
 
-    def getEnabledFilters(self):
-        return [fltr for fltr in self.getFilters() if fltr.enabled]
+    def getActiveFilters(self):
+        return self.activeFilters
 
-    def onCurrencyUpdate(self):
-        with self.filters_lock:
-            for fltr in self.getFilters():
-                fltr.compute()
+    def compileFilter(self, fltr, path=None):
+        if path is None:
+            path = []
+        if fltr.id in path:
+            raise AppException("Circular reference detected while compiling filters: {}".format(path))
+        path.append(fltr.id)
+
+        if not fltr.baseId or fltr.baseId == fltr.id:
+            baseComp = {}
+        else:
+            baseFilter = self.getFilterById(fltr.baseId, itertools.chain(self.userFilters, self.autoFilters))
+            if baseFilter is None:
+                # try using last compilation
+                compiledFilter = self.getFilterById(fltr.baseId, self.activeFilters, lambda x, y: x.fltr.id == y)
+                if compiledFilter is None:
+                    return None
+                baseComp = self.compileFilter(compiledFilter.fltr, path)
+            else:
+                baseComp = self.compileFilter(baseFilter, path)
+
+        if baseComp is None:
+            return None
+
+        return fltr.compile(baseComp)
 
     @staticmethod
-    def isOverrideValid(flt_name, override):
-        match = _OVERRIDE_REGEX.match(str(override))
-        if match is not None:
-            opr, price = match.groups()
-            if opr == '': return _NUMBER_REGEX.match(price) is not None
-            else: return cm.isPriceValid(price)
-        return False
+    def getFilterById(id, filters, match=lambda x, y: x.id == y):
+        for fltr in filters:
+            if match(fltr, id):
+                return fltr
+        return None
 
     @staticmethod
     def loadFiltersFromFile(fname):
         filters = []
 
+        cur_fname = fname
         try:
-            cur_fname = fname
             with open(cur_fname, encoding="utf-8", errors="replace") as f:
                 data = json.load(f)
 
@@ -267,22 +302,17 @@ class FilterManager:
             validate(data, schema)
 
             for item in data:
-                # if not item.get('enabled', True):
-                #     continue
-
-                fltr = Filter(item['title'], item['criteria'])
-                fltr.Init()
-
+                fltr = Filter.fromDict(item)
+                fltr.validate()
                 filters.append(fltr)
-
+        except FileNotFoundError:
+            raise AppException(FILTER_FILE_MISSING.format(cur_fname))
         except ValidationError as e:
             raise AppException(FILTER_VALIDATION_ERROR.format(FilterManager._get_verror_msg(e, data)))
         except SchemaError as e:
             raise AppException(FILTER_SCHEMA_ERROR.format(e.message))
         except json.decoder.JSONDecodeError as e:
             raise AppException(FILTER_INVALID_JSON.format(e, cur_fname))
-        except FileNotFoundError:
-            raise AppException(FILTER_FILE_MISSING.format(cur_fname))
 
         return filters
 

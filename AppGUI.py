@@ -137,8 +137,10 @@ class AppGUI(Tk):
         # if self.scan_thread.is_alive():
         #     self.scan_thread.join()
 
-app = AppGUI()
 
-app.mainloop()
+if __name__ == "__main__":
+    app = AppGUI()
 
-app.quit()
+    app.mainloop()
+
+    app.quit()

@@ -37,6 +37,7 @@
 	},
 	{
 		"title": "Crystal Belt i84",
+		"id": "crystal-i84",
 		"criteria": {
 			"base": "crystal belt",
 			"ilvl": 84,
@@ -44,6 +45,51 @@
 			"buyout": true,
 			"price": "6 exalted",
 			"corrupted": false
+		}
+	},
+	{
+		"title": "Corrupted Crystal Belt i84",
+		"id": "corrupted-crystal-i84",
+		"baseId": "Crystal-i84",
+		"criteria": {
+			"corrupted": true,
+			"price": " / 5"
+		}
+	},
+	{
+		"title": "Pure Signal Fire",
+		"baseId": "the signal fire",
+		"criteria": {
+			"corrupted": false
+		}
+	},
+	{
+		"title": "Corrupted Signal Fire",
+		"baseId": "the signal fire",
+		"criteria": {
+			"corrupted": true,
+			"price": " / 3"
+		}
+	},
+	{
+		"title": "10 Pure Signal Fire",
+		"baseId": "the signal fire",
+		"criteria": {
+			"price": " * 10"
+		}
+	},
+	{
+		"title": "+5 ex Pure Signal Fire",
+		"baseId": "the signal fire",
+		"criteria": {
+			"price": "+5 ex"
+		}
+	},
+	{
+		"title": "-20 chaos Pure Signal Fire",
+		"baseId": "the signal fire",
+		"criteria": {
+			"price": "-20 chaos"
 		}
 	},
 	{

@@ -137,6 +137,14 @@
             "title": {
                 "id": "/title",
                 "type": "string"
+            },
+			"id": {
+                "id": "/id",
+                "type": "string"
+            },
+			"baseid": {
+                "id": "/baseid",
+                "type": "string"
             }
         },
         "required": [
