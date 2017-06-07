@@ -45,12 +45,10 @@ _ITEM_TYPE = {0: 'normal',
 _BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 _LOCALIZATION_REGEX = re.compile("<<.*>>")
 
-FILTER_INVALID_PRICE = "Invalid price '{}' in filter {}"
-FILTER_INVALID_PRICE_BASE = "Invalid price in filter: {}. Expected filter ot have a base"
-FILTER_INVALID_REGEX = "Invalid regex: '{}' in filter {}. Error while compiling: {}"
 
-_FILTER_PRICE_REGEX = re.compile('\s*([+\-*/]?)\s*(.+)')
-_NUMBER_REGEX = re.compile('[0-9]+(?:\.[0-9]+)?$')
+
+
+
 
 
 class FilterEncoder(JSONEncoder):
@@ -208,6 +206,13 @@ class CompiledFilter:
 
 class Filter:
 
+    FILTER_INVALID_PRICE = "Invalid price '{}' in filter {}"
+    FILTER_INVALID_PRICE_BASE = "Invalid price in filter: {}. Expected filter ot have a base"
+    FILTER_INVALID_REGEX = "Invalid regex: '{}' in filter {}. Error while compiling: {}"
+
+    _FILTER_PRICE_REGEX = re.compile('\s*([+\-*/]?)\s*(.+)')
+    _NUMBER_REGEX = re.compile('[0-9]+(?:\.[0-9]+)?$')
+
     def __init__(self, title, criteria, enabled, category, id='', base_id=''):
         self.title = title
         self.criteria = criteria
@@ -221,12 +226,12 @@ class Filter:
         if self.criteria:
             if not self.baseId and 'price' in self.criteria:
                 if not Filter.isPriceValid(self.criteria['price']):
-                    raise AppException(FILTER_INVALID_PRICE.format(self.criteria['price'], self.title))
+                    raise AppException(Filter.FILTER_INVALID_PRICE.format(self.criteria['price'], self.title))
 
                 # check if opr relies on base
-                opr = _FILTER_PRICE_REGEX.match(str(self.criteria['price'])).group(1)
+                opr = Filter._FILTER_PRICE_REGEX.match(str(self.criteria['price'])).group(1)
                 if opr != '':
-                    raise AppException(FILTER_INVALID_PRICE_BASE.format(self.criteria['price']))
+                    raise AppException(Filter.FILTER_INVALID_PRICE_BASE.format(self.criteria['price']))
 
             try:
                 for mod_key in ("implicit", "explicit", "mods"):
@@ -234,7 +239,7 @@ class Filter:
                         for mod_filter in self.criteria[mod_key]['mods']:
                             re.compile(mod_filter['expr'])
             except re.error as e:
-                raise AppException(FILTER_INVALID_REGEX.format(e.pattern, self.title, e))
+                raise AppException(Filter.FILTER_INVALID_REGEX.format(e.pattern, self.title, e))
 
     def compile(self, base={}):
         crit = self.criteria
@@ -298,18 +303,18 @@ class Filter:
 
     @staticmethod
     def isPriceValid(fltr_price):
-        match = _FILTER_PRICE_REGEX.match(str(fltr_price))
+        match = Filter._FILTER_PRICE_REGEX.match(str(fltr_price))
         if match is not None:
             opr, price = match.groups()
             if opr in ('*', '/'):
-                return _NUMBER_REGEX.match(price) is not None and float(price) > 0
+                return Filter._NUMBER_REGEX.match(price) is not None and float(price) > 0
             else:
                 return cm.isPriceValid(price)
         return False
 
     @staticmethod
     def compilePrice(fltr_price, base_price=None):
-        opr, price = _FILTER_PRICE_REGEX.match(str(fltr_price)).groups()
+        opr, price = Filter._FILTER_PRICE_REGEX.match(str(fltr_price)).groups()
         new_price = 0
 
         if opr != '' and base_price is None:
