@@ -1,47 +1,43 @@
-import weakref
 from threading import Thread, Event
 
-import lib.StashScanner
+import logging
+
 from lib.CurrencyManager import cm
 from lib.FilterManager import FilterManager
-from lib.Utility import AppException
+from lib.Utility import AppException, msgr, logexception
 
 
 class UpdateThread(Thread):
-    def __init__(self, event, fm, interval, scanner):
+    def __init__(self, event, fm, interval):
         Thread.__init__(self)
         self.stopped = event
         self.fm = fm
         self.interval = interval
-        self.scanner = weakref.ref(scanner)
 
     def run(self):
         while not self.stopped.wait(self.interval):
-            scanner = self.scanner()
             compile_filters = False
             try:
                 try:
                     cm.update()
-                    # self.fm.onCurrencyUpdate()
-                    if scanner:
-                        scanner.send_msg("Currency rates updated successfully.")
-                        compile_filters = True
+                    # msgr.send_msg("Currency rates updated successfully.", logging.INFO)
+                    compile_filters = True
                 except AppException as e:
-                    if scanner:
-                        scanner.send_msg(e, lib.StashScanner.LogLevel.Error, lib.StashScanner.MsgType.TextError)
+                    msgr.send_msg(e, logging.ERROR)
 
                 try:
                     self.fm.fetchFromAPI()
-                    if scanner:
-                        scanner.send_msg("Filters from API updated successfully.")
+                    # msgr.send_msg("Filters updated successfully.", logging.INFO)
                     compile_filters = True
                 except AppException as e:
-                    if scanner:
-                        scanner.send_msg(e, lib.StashScanner.LogLevel.Error, lib.StashScanner.MsgType.TextError)
+                    msgr.send_msg(e, logging.ERROR)
 
                 if compile_filters:
                     self.fm.compileFilters()
+                    msgr.send_msg("Scheduled update completed successfully.", logging.INFO)
+                else:
+                    msgr.send_msg("Scheduled currency and filters update failed. Retrying in {} seconds.."
+                                  .format(self.interval), logging.WARN)
             except Exception as e:
-                if scanner:
-                    scanner.send_msg("Unexpected error while updating: {}".format(e))
-            del scanner
+                msgr.send_msg("Unexpected error while updating: {}".format(e), logging.ERROR)
+                logexception()

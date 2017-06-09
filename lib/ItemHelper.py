@@ -46,11 +46,6 @@ _BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-
 _LOCALIZATION_REGEX = re.compile("<<.*>>")
 
 
-
-
-
-
-
 class FilterEncoder(JSONEncoder):
     RE_COMPILED = type(re.compile(''))
 
@@ -73,8 +68,8 @@ class CompiledFilter:
     def __str__(self):
         # return "{}: {}".format(self.title, json.dumps(self.criteria, sort_keys=True, cls=FilterEncoder))
         # if 'price' in self.fltr.criteria:
-        if self.fltr.category == 'user':
-            return "{}: {}".format(self.getDisplayTitle(), json.dumps(self.comp, sort_keys=True, cls=FilterEncoder))
+        # if self.fltr.category == 'user':
+        #     return "{}: {}".format(self.getDisplayTitle(), json.dumps(self.comp, sort_keys=True, cls=FilterEncoder))
         return self.getDisplayTitle()
 
     def getDisplayPrice(self):
@@ -93,11 +88,11 @@ class CompiledFilter:
 
     def getDisplayTitle(self):
         title = self.fltr.title
-        if self.fltr.category != 'user':
-            price = self.getDisplayPrice()
+        # if self.fltr.category != 'user':
+        price = self.getDisplayPrice()
 
-            if price:
-                title = "{} ({})".format(self.fltr.title, price)
+        if price:
+            title = "{} ({})".format(self.fltr.title, price)
 
         return title
 
@@ -406,7 +401,7 @@ def get_item_price_display(item, stash):
     price = get_item_price(item, stash)
     if price is not None:
         amount, currency = price
-        return "{} {}".format(amount, cm.whisper[currency] if currency in cm.whisper else currency)
+        return "{} {}".format(amount, cm.toWhisper(currency))
 
     return ""
 

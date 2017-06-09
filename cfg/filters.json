@@ -49,11 +49,18 @@
 	},
 	{
 		"title": "Corrupted Crystal Belt i84",
-		"id": "corrupted-crystal-i84",
 		"baseId": "Crystal-i84",
 		"criteria": {
 			"corrupted": true,
 			"price": " / 5"
+		}
+	},
+		{
+		"title": "Unique Crystal Belt i84",
+		"baseId": "Crystal-i84",
+		"criteria": {
+			"type": ["unique"],
+			"price": " / 20"
 		}
 	},
 	{

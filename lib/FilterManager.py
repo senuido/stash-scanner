@@ -6,8 +6,10 @@ import pycurl
 import threading
 
 import itertools
+
+import logging
 from jsonschema import validate, ValidationError, SchemaError
-from lib.Utility import config, AppException, getJsonFromURL, str2bool
+from lib.Utility import config, AppException, getJsonFromURL, str2bool, logexception, msgr
 from lib.CurrencyManager import cm
 from lib.ItemHelper import Filter, _ITEM_TYPE, FilterEncoder, CompiledFilter
 
@@ -100,7 +102,6 @@ class FilterManager:
             'state_overrides': self.state_overrides
         }
 
-        #os.makedirs(os.path.dirname(_AUTO_CFG_FNAME), exist_ok=True)
         with open(_FILTERS_CFG_FNAME, mode="w", encoding="utf-8", errors="replace") as f:
             json.dump(data, f, indent=4, separators=(',', ': '), sort_keys=True)
 
@@ -129,13 +130,14 @@ class FilterManager:
                     crit['buyout'] = True
 
                     title = "{} {} {}".format(
-                        'Legacy' if crit['type'] == 'relic' else '',
+                        'Legacy' if 'relic' in crit['type'] else '',
                         item['name'],
                         item['variant'] if item['variant'] is not None else '').strip()
 
                     if item['variant'] is not None:
                         if item['variant'] not in _VARIANTS:
-                            print("Unknown variant {} in item {}".format(item['variant'], item['name']))
+                            msgr.send_msg("Unknown variant {} in item {}".format(item['variant'], item['name']),
+                                          logging.WARN)
                         else:
                             crit['explicit'] = {'mods': [{'expr': _VARIANTS[item['variant']]}]}
 
@@ -152,7 +154,7 @@ class FilterManager:
         except (KeyError, ValueError) as e:
             raise AppException("Filters update failed. Parsing error: {}".format(e))
         except Exception as e:
-            # WRITE TO FILE FOR DEBUG
+            logexception()
             raise AppException("Filters update failed. Unexpected error: {}".format(e))
 
     def loadUserFilters(self):
@@ -161,6 +163,7 @@ class FilterManager:
         except AppException:
             raise
         except Exception as e:
+            logexception()
             raise AppException("Loading user filters failed. Unexpected error: {}".format(e))
 
     def loadAutoFilters(self):
@@ -169,6 +172,7 @@ class FilterManager:
         except AppException:
             raise
         except Exception as e:
+            logexception()
             raise AppException("Loading generated filters failed. Unexpected error: {}".format(e))
 
     def saveAutoFilters(self):
@@ -186,7 +190,7 @@ class FilterManager:
         for fltr in self.autoFilters:
             comp = self.compileFilter(fltr)
             if comp is None:
-                print('Failed compiling filter {}'.format(fltr.getDisplayTitle()))
+                msgr.send_msg('Failed compiling filter {}'.format(fltr.getDisplayTitle()), logging.WARN)
             else:
                 cf = CompiledFilter(fltr, comp)
                 cf.enabled = comp.get('price', -1) >= min_val and fltr.category not in disabled_cat
@@ -194,14 +198,17 @@ class FilterManager:
 
         self.applyOverrides(filters)
 
+        user_filters = []
         for fltr in self.userFilters:
             comp = self.compileFilter(fltr)
             if comp is None:
-                print('Failed compiling filter {}'.format(fltr.getDisplayTitle()))
+                msgr.send_msg('Failed compiling filter {}'.format(fltr.getDisplayTitle()), logging.WARN)
             else:
                 cf = CompiledFilter(fltr, comp)
                 cf.enabled = fltr.enabled and fltr.category not in disabled_cat
-                filters.append(cf)
+                user_filters.append(cf)
+
+        filters = user_filters + filters
 
         active_filters = [fltr for fltr in filters if fltr.enabled]
 

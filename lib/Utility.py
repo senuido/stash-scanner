@@ -2,8 +2,50 @@ import json
 import os
 import pycurl
 import time
+import traceback
+import uuid
 from configparser import ConfigParser
+from enum import IntEnum
 from io import BytesIO
+
+import logging
+from queue import Queue
+
+logging.basicConfig(filename='log\\app.log',
+                    level=logging.INFO,
+                    format='%(asctime)s# %(name)-15s %(levelname)-8s %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger('scanner') #logging.getLogger(__name__)
+
+class MsgType(IntEnum):
+    ScanStopped = 0
+    UpdateID = 1
+    Text = 10
+
+
+class Messenger:
+    def __init__(self):
+        self.msg_queue = Queue()
+        # self.log_level = logging.INFO
+
+    def send_tmsg(self, msg, log_level=logging.NOTSET):
+        self.send_msg(msg, log_level, True)
+
+    def send_msg(self, msg, log_level=logging.NOTSET, timed=False):
+        if log_level == logging.NOTSET:
+            logger.log(logging.INFO, msg)
+        else:
+            logger.log(log_level, msg)
+        # if self.log_level >= log_level:
+        if timed:
+            msg = tmsg(msg)
+        self.msg_queue.put((MsgType.Text, log_level, msg))
+
+    def send_stopped(self):
+        self.msg_queue.put((MsgType.ScanStopped,))
+
+    def send_update_id(self, id):
+        self.msg_queue.put((MsgType.UpdateID, id))
 
 
 class AppException(Exception):
@@ -41,7 +83,6 @@ class AppConfiguration(object):
         for name in AppConfiguration.section_names:
             self.__dict__.update(parser.items(name))
 
-config = AppConfiguration()
 
 def getJsonFromURL(url, handle=None, max_attempts=1):
     if not handle:
@@ -64,7 +105,8 @@ def getJsonFromURL(url, handle=None, max_attempts=1):
             return json.loads(buffer.getvalue().decode())
 
         attempts += 1
-        print(tmsg("HTTP Code: {} while trying to retrieve URL: {}".format(handle.getinfo(handle.RESPONSE_CODE), url)))
+        msgr.send_tmsg("HTTP Code: {} while trying to retrieve URL: {}"
+                       .format(handle.getinfo(handle.RESPONSE_CODE), url), logging.WARN)
 
     return None
 
@@ -78,3 +120,40 @@ def str2bool(val):
 def tmsg(msg):
     return "{}# {}".format(time.strftime("%H:%M:%S"), msg)
 
+def logexception():
+    # logger.exception("Exception information")
+    logger.error(traceback.format_exc())
+
+# def logerror(msg):
+#     os.makedirs(os.path.dirname(ERROR_FNAME), exist_ok=True)
+#     with open(ERROR_FNAME, mode="a") as f:
+#         f.write(msg + '\n')
+
+class NoIndent(object):
+    def __init__(self, value):
+        self.value = value
+
+
+class NoIndentEncoder(json.JSONEncoder):
+    def __init__(self, *args, **kwargs):
+        super(NoIndentEncoder, self).__init__(*args, **kwargs)
+        self.kwargs = dict(kwargs)
+        del self.kwargs['indent']
+        self._replacement_map = {}
+
+    def default(self, o):
+        if isinstance(o, NoIndent):
+            key = uuid.uuid4().hex
+            self._replacement_map[key] = json.dumps(o.value, **self.kwargs)
+            return "@@{}@@".format((key,))
+        else:
+            return super(NoIndentEncoder, self).default(o)
+
+    def encode(self, o):
+        result = super(NoIndentEncoder, self).encode(o)
+        for k, v in self._replacement_map.items():
+            result = result.replace('"@@{}@@"'.format((k,)), v)
+        return result
+
+config = AppConfiguration()
+msgr = Messenger()
