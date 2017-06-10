@@ -17,7 +17,7 @@ class StateManager:
         self.fState = None
         self.fStateId = None
 
-        self.loadState()
+        # self.loadState()
 
     def addItem(self, id, price, acc):
         b_update = False
@@ -105,3 +105,9 @@ class StateManager:
 
     def getChangeId(self):
         return self.changeid
+
+    def close(self):
+        if self.fState:
+            self.fState.close()
+        if self.fStateId:
+            self.fStateId.close()

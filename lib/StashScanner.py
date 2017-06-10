@@ -28,6 +28,7 @@ class StashScanner:
 
     def __init__(self):
         self.notifier = NotifyThread()
+        self.stateMgr = StateManager()
         self._stop = Event()
         # self._stopped = Event()
 
@@ -64,6 +65,7 @@ class StashScanner:
             logexception()
 
         self.notifier.close()
+        self.stateMgr.close()
         msgr.send_msg("Scanning stopped")
         msgr.send_stopped()
         # self._stopped.set()
@@ -71,8 +73,7 @@ class StashScanner:
     def scan(self):
         msgr.send_msg("Scan initializing..")
         os.makedirs('tmp', exist_ok=True)
-
-        msgr.send_msg("This is a warning, not a too long one", logging.WARN)
+        os.makedirs('log', exist_ok=True)
 
         cm.load()
         if cm.initialized:
@@ -124,9 +125,9 @@ class StashScanner:
 
         # INITIAL CHANGE ID
         lastId = ""
-        stateMgr = StateManager()
+        self.stateMgr.loadState()
 
-        if stateMgr.getChangeId() == "" or str(config.scan_mode).lower() == "latest":
+        if self.stateMgr.getChangeId() == "" or str(config.scan_mode).lower() == "latest":
             msgr.send_msg("Fetching latest id from API..")
             data = getJsonFromURL(NINJA_API, max_attempts=3)
             if data is None:
@@ -135,9 +136,9 @@ class StashScanner:
             if "nextChangeId" not in data:
                 raise AppException("Error retrieving latest id from API, missing nextChangeId key")
 
-            stateMgr.saveState(data["nextChangeId"])
+            self.stateMgr.saveState(data["nextChangeId"])
 
-        stashUrl = POE_API.format(stateMgr.getChangeId())
+        stashUrl = POE_API.format(self.stateMgr.getChangeId())
 
         updater = ut.UpdateThread(self._stop, fm, 5 * 60)
         updater.start()
@@ -152,7 +153,7 @@ class StashScanner:
         msgr.send_msg("Scanning started")
         while not self._stop.wait(sleep_time):
             try:
-                msgr.send_update_id(stateMgr.getChangeId())
+                msgr.send_update_id(self.stateMgr.getChangeId())
                 data_count = (0, 0, 0)
 
                 last_req = time.time()
@@ -171,22 +172,22 @@ class StashScanner:
                     continue
 
                 # Process if its the first time we're in this id
-                curId = stateMgr.getChangeId()
+                curId = self.stateMgr.getChangeId()
 
                 last_parse = time.time()
                 filters = fm.getActiveFilters()
 
                 if lastId != curId:
-                    data_count = parse_stashes_parallel(data, filters, stateMgr, self.handleResult, num_cores)
+                    data_count = parse_stashes_parallel(data, filters, self.stateMgr, self.handleResult, num_cores)
                 else:
-                    parse_next_id(data, stateMgr)
+                    parse_next_id(data, self.stateMgr)
 
                     if not ahead:
                         msgr.send_msg("Reached the end of the river..", logging.INFO)
                         ahead = True
 
                 lastId = curId
-                stashUrl = POE_API.format(stateMgr.getChangeId())
+                stashUrl = POE_API.format(self.stateMgr.getChangeId())
 
                 parse_time = time.time() - last_parse
 

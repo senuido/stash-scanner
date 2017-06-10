@@ -1,0 +1,54 @@
+app.ini:
+ - `league` - league name (one of `Legacy, Hardcore Legacy, Standard, Hardcore Standard`)
+ - `notification_duration` - minimum delay between notifications. if you get two notifications at once, this delay will allow you to respond convienently to both (since when a match is found a message is copied to the clipboard)
+ - `request_delay` - minimal delay between requests. Tweak these if you're getting throttled consistently.
+ - `scan_mode` - when set to `continue`, scanning will be resumed from the last saved point (if there is none, starts from end). when set to 'latest', scanning will start from the end of the river. default is latest.
+
+currency.json: stores all currency related information. generated from API
+ - `rates` - currency rates. here you can see the rates according to the API. do not edit this, any edits here will be replaced with information from API. if you need to edit rates then use overrides
+ - `shorts` - abbrevations for currencies. you can add shorts here if something is missing (merged with information from API)
+ - `whisper`- mapping from currency to whisper message representation
+ - `overrides`: this mapping will allow you to tweak currency rates. here you can add missing rates or update existing ones
+	entries should be of the form "<Currency name>": "<price>". currency name should be exactly as it appears in-game and is case sensitive.
+	for example, "Eternal Orb": "50 exalted"
+	
+	a notable example is doing something like: "Exalted Orb": "0.9 ex". 
+	this will shave 10% off the rate retrieved from the API.
+	
+	the order of overrides doesn't matter, so if you have something like:
+	"overrides": {
+        "Eternal Orb": "40 ex",
+        "Exalted Orb": "0.5 ex",
+        "Mirror of Kalandra": "170 ex"
+    }
+	then the entry for "Exalted Orb" will be applied before the others, so don't worry about that
+	
+
+filters.config.json:
+ - `categories`: toggle filters by categories
+ - `price_overrides`: this mapping allows you to override specific generated filters prices.
+	for example:
+	"price_overrides": {
+		"headhunter": "-5 ex",
+		"astramentis": "* 0.85"
+	}
+	lets say headhunter price from API is 90ex. the first entry will change the generated filter with the id 'headhunter' (case insensitive) to have 85ex as max price.
+	the second entry will change the 'astramentis' filter to have 85% of API value as its max price.
+	if you're not sure what the id for a filter is, you can open up the filters.auto.json file (under 'tmp' directory) and look it up
+	the format is the same as prices in filters.
+ - `default_price_override`: default price override for all generated filters.
+	for example, putting "* 0.9" would effectively make all generated filters to use 90% of the item value as the maximum price.
+	the format is the same as prices in filters.
+ - `price_threshold`: minimum price (before overrides) for generated filters to be enabled. default is 1 ex. think of this as the minimum value of items you're interested in.
+ - `state_overrides`: mapping to enable/disable specific generated filters.
+	lets say your threshold is 1 ex, but if you still want to see good deals on astramentis even though its price is under 1 ex.
+	also, lets say you're not interested in seeing alerts about signal fire, even though its above your threshold.
+	then you would do something like:
+	"state_overrides": {
+        "astramentis": true,
+        "the signal fire": false
+    }
+ 
+
+filters.json:
+this is where you can configure your own filters. see filters guide for specs

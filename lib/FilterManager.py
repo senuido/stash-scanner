@@ -20,8 +20,8 @@ FILTER_SCHEMA_ERROR = "Filter schema error: {}"
 
 FM_INVALID_PRICE_THRESHOLD = "Invalid price threshold {}"
 
-_AUTO_FILTERS_FNAME = "tmp\\auto-filters.json"
-_FILTERS_CFG_FNAME = "cfg\\filters-config.json"
+_AUTO_FILTERS_FNAME = "tmp\\filters.auto.json"
+_FILTERS_CFG_FNAME = "cfg\\filters.config.json"
 _USER_FILTERS_FNAME = "cfg\\filters.json"
 _FILTER_SCHEMA_FNAME = "res\\filters.schema.json"
 

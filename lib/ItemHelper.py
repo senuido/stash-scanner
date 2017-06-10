@@ -519,7 +519,7 @@ class Item:
         self.stacksize = get_item_stacksize(item)
         self.modcount = get_item_modcount(item)
 
-        self.name = get_item_name(item)
+        self.name = get_item_name(item).lower()
         price = get_item_price(item, stash)
         if price is None:
             self.price = None

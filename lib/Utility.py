@@ -9,13 +9,29 @@ from enum import IntEnum
 from io import BytesIO
 
 import logging
+import logging.handlers
 from queue import Queue
 
-logging.basicConfig(filename='log\\app.log',
-                    level=logging.INFO,
-                    format='%(asctime)s# %(name)-15s %(levelname)-8s %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-logger = logging.getLogger('scanner') #logging.getLogger(__name__)
+import warnings
+warnings.filterwarnings('ignore', message='.*parallel loops cannot be nested below threads.*', category=UserWarning)
+
+os.makedirs('log', exist_ok=True)
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s# %(name)-15s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+fh = logging.handlers.RotatingFileHandler('log\\app.log', encoding='utf-8', maxBytes=10*1024*1024, backupCount=1)
+fh.setFormatter(formatter)
+
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+ch.setLevel(logging.WARN)
+
+root_logger.addHandler(fh)
+root_logger.addHandler(ch)
+logger = root_logger
+# logger = logging.getLogger('scanner') #logging.getLogger(__name__)
 
 class MsgType(IntEnum):
     ScanStopped = 0

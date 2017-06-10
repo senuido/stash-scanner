@@ -14,11 +14,12 @@
 
 ## Configuration
 Under `cfg` directory:
-- `app.cfg`: contains league information and other preferences
-  - `league` - league name (one of `Legacy, Hardcore Legacy, Standard, Hardcore Standard`)
-  - `notification_duration` - minimum delay between notifications. if you get two notifications at once, this delay will allow you to respond convienently to both (since when a match is found a message is copied to the clipboard)
-  - `request_delay`,`request_ahead_delay` - minimal delay between requests. Tweak these if you're getting throttled consistently.
-- `filters.cfg`: contains item filters information, items will be matched according to these.
+- `app.ini`: contains league information and other preferences
+- `filters.json`: contains item filters information, items will be matched according to these.
+- `filters.config.json`: contains mostly configuration for generated filters. price threshold, price overrides and such
+- 'currency.json': contains currency information. currency names, rates, rates overrides, etc.
+
+see configuration guide under `doc` directory.
 
 ## Usage
 - Configure preferences/filters
@@ -27,8 +28,7 @@ Under `cfg` directory:
 
 ### Things to note
 - You need to run PoE in windowed/windowed fullscreen mode for the notifications to show
-- Python 3.x-3-5.x SHOULD work but only 3.5 was tested
+- Only Python 3.5 was tested, might be incompatible with previous version (don't even try 2.x)
 
 ### Why
 Because there aren't any worthy public tools that do this at the API level.
-Because trading in PoE sucks.

@@ -83,9 +83,9 @@ class AppGUI(Tk):
         self.results_scroll.configure(command=self.lst_msgs.yview)
         self.lst_msgs['yscrollcommand'] = self.results_scroll.set
 
-        msgr.send_msg("This is a normal message")
-        msgr.send_msg("This is a warning message", logging.WARN)
-        msgr.send_msg("This is an error message", logging.ERROR)
+        # msgr.send_msg("This is a normal message")
+        # msgr.send_msg("This is a warning message", logging.WARN)
+        # msgr.send_msg("This is an error message", logging.ERROR)
 
     def center(self):
         self.update_idletasks()
