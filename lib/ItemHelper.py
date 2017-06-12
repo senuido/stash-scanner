@@ -2,6 +2,7 @@ import copy
 import json
 import re
 from array import array
+from enum import IntEnum
 from itertools import chain
 
 from json import JSONEncoder
@@ -360,6 +361,17 @@ def get_item_links(item):
         return max(groups)
     return 0
 
+def get_item_links_string(item):
+    links = ''
+    lg = '-1'
+    for socket in item.get('sockets', []):
+        if lg != '-1':
+            links += '-' if lg == socket['group'] else ' '
+        links += socket['attr']
+        lg = socket['group']
+
+    return links
+
 
 def get_item_name(item):
     return _LOCALIZATION_REGEX.sub('', "{} {}".format(item["name"], item["typeLine"])).strip()
@@ -531,4 +543,63 @@ class Item:
         self.explicit = [mod.lower() for mod in item.get('explicitMods', [])]
         self.mods = self.implicit + self.explicit + \
                     [mod.lower() for mod in (item.get('enchantMods', []) + item.get('craftedMods', []))]
+
+class PropValueType(IntEnum):
+    WhiteOrPhysical = 0
+    BlueOrModified = 1
+    Fire = 4
+    Cold = 5
+    Lightning = 6
+    Chaos = 7
+
+class PropDisplayMode(IntEnum):
+    Normal = 0
+    StatReq = 1
+    Progress = 2
+    Format = 3
+
+class ItemType(IntEnum):
+    Normal = 0
+    Magic = 1
+    Rare = 2
+    Unique = 3
+    Gem = 4
+    Currency = 5
+    DivinationCard = 6
+    QuestItem = 7
+    Prophecy = 8
+    Relic = 9
+
+class ItemInfo:
+
+    def __init__(self, item, stash):
+
+        self.icon = item['icon']
+        self.name = get_item_name(item)
+        self.type = item['frameType']
+        self.corrupted = item['corrupted']
+        self.ilvl = item['ilvl']
+
+        self.enchant = item.get('enchantMods', [])
+        self.implicit = item.get('implicitMods', [])  #item.get('utilityMods', []))
+        self.utility = item.get('utilityMods', [])
+        self.explicit = item.get('explicitMods', [])
+        self.crafted = item.get('craftedMods', [])
+
+        self.sockets = get_item_sockets(item)
+        self.links = get_item_links(item)
+        self.links_string = get_item_links_string(item)
+        self.identified = item['identified']
+
+        # {req['name']: req['values'][0] if req['values'] else [] for req in item.get('requirements', [])}
+        self.requirements = item.get('requirements', [])
+        # {prop['name']: prop['values'][0] if prop['values'] else [] for prop in item.get('properties', [])}
+        self.properties = item.get('properties', []) + item.get('additionalProperties', [])
+
+        self.note = item.get('note')
+        self.price = get_item_price_raw(item, stash)  #tmp
+
+
+
+
 

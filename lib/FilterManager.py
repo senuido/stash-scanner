@@ -125,7 +125,7 @@ class FilterManager:
                 for item in data['lines']:
                     crit = {}
                     crit['price'] = "{} exalted".format(float(item.get('exaltedValue', 0)))
-                    crit['name'] = [item['name']]
+                    crit['name'] = [item['name'].lower()]
                     crit['type'] = [_ITEM_TYPE[item['itemClass']]]
                     crit['buyout'] = True
 

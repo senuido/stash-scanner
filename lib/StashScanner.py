@@ -45,8 +45,18 @@ class StashScanner:
         self.notifier.send((fltr.getDisplayTitle(), msg, whisperMsg))
         winsound.PlaySound(ALERT_FNAME, winsound.SND_ASYNC | winsound.SND_FILENAME)
 
-        msgr.send_tmsg(get_item_info(item, stash))
-        msgr.send_msg(whisperMsg)
+        # msgr.send_tmsg(get_item_info(item, stash))
+
+        try:
+            item_info = ItemInfo(item, stash)
+        except (KeyError, IndexError) as e:
+            msgr.send_msg("Error parsing item info, item details will not be displayed", logging.WARN)
+            item_info = None
+            logexception()
+            with open('log\\item.error', mode='w') as f:
+                json.dump(item, f, indent=4, separators=(',', ': '))
+            print(json.dumps(item, indent=4, separators=(',', ': ')))
+        msgr.send_msg(whisperMsg, tag=item_info)
 
     def stop(self):
         self._stop.set()

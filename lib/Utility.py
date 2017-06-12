@@ -44,10 +44,10 @@ class Messenger:
         self.msg_queue = Queue()
         # self.log_level = logging.INFO
 
-    def send_tmsg(self, msg, log_level=logging.NOTSET):
-        self.send_msg(msg, log_level, True)
+    def send_tmsg(self, msg, log_level=logging.NOTSET, tag=None):
+        self.send_msg(msg, log_level, timed=True, tag=tag)
 
-    def send_msg(self, msg, log_level=logging.NOTSET, timed=False):
+    def send_msg(self, msg, log_level=logging.NOTSET, timed=False, tag=None):
         if log_level == logging.NOTSET:
             logger.log(logging.INFO, msg)
         else:
@@ -55,7 +55,7 @@ class Messenger:
         # if self.log_level >= log_level:
         if timed:
             msg = tmsg(msg)
-        self.msg_queue.put((MsgType.Text, log_level, msg))
+        self.msg_queue.put((MsgType.Text, log_level, msg, tag))
 
     def send_stopped(self):
         self.msg_queue.put((MsgType.ScanStopped,))
