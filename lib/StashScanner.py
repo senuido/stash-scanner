@@ -9,6 +9,7 @@ from threading import Event
 import logging
 
 import lib.UpdateThread as ut
+from lib.CurrencyManager import CurrencyInfo
 from lib.FilterManager import FilterManager
 from lib.ItemHelper import *
 from lib.NotifyThread import NotifyThread
@@ -125,13 +126,13 @@ class StashScanner:
         filters = fm.getActiveFilters()
 
         if not len(filters):
-            raise AppException("No active filters loaded")
+            raise AppException("No filters are active. Stopping..")
 
-        msgr.send_msg("{} filters were loaded. {} filters are active."
-                      .format(len(fm.getFilters()), len(filters)))
-
-        for fltr in filters:
-            msgr.send_msg(fltr)
+        # msgr.send_msg("{} filters were loaded. {} filters are active."
+        #               .format(len(fm.getFilters()), len(filters)))
+        #
+        # for fltr in filters:
+        #     msgr.send_msg(fltr)
 
         # INITIAL CHANGE ID
         lastId = ""
@@ -209,7 +210,7 @@ class StashScanner:
 
             except pycurl.error as e:
                 errno, msg = e.args
-                msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.ERROR)
+                msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
                 c.close()
                 c = pycurl.Curl()
                 sleep_time = 5

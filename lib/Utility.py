@@ -37,6 +37,8 @@ class MsgType(IntEnum):
     ScanStopped = 0
     UpdateID = 1
     Text = 10
+    Object = 11
+    Custom = 100
 
 
 class Messenger:
@@ -62,6 +64,9 @@ class Messenger:
 
     def send_update_id(self, id):
         self.msg_queue.put((MsgType.UpdateID, id))
+
+    def send_object(self, obj):
+        self.msg_queue.put((MsgType.Object, obj))
 
 
 class AppException(Exception):
@@ -127,14 +132,51 @@ def getJsonFromURL(url, handle=None, max_attempts=1):
     return None
 
 
+def getDataFromUrl(url, callback, max_attempts=1):
+    c = pycurl.Curl()
+    buffer = BytesIO()
+    c.setopt(c.URL, url)
+    c.setopt(c.TIMEOUT, 5)
+    # c.setopt(c.VERBOSE, 1)
+    c.setopt(c.ENCODING, 'gzip, deflate')
+    c.setopt(c.WRITEFUNCTION, buffer.write)
+
+    retrieved = False
+    attempts = 0
+    while attempts < max_attempts and not retrieved:
+        try:
+            c.perform()
+            if c.getinfo(c.RESPONSE_CODE) == 200 and c.getinfo(c.CONTENT_LENGTH_DOWNLOAD):
+                data = buffer
+                callback(url, data)
+                retrieved = True
+
+            # print('Data Length: {}'.format(len(buffer.getbuffer())))
+        except pycurl.error as e:
+            pass
+
+        attempts += 1
+
+    if not retrieved:
+        callback(url, None)
+    c.close()
+
+
 def str2bool(val):
     if val.lower() in ("true", "t", "yes", "y", "1"): return True
     if val.lower() in ("false", "f", "no", "n", "0"): return False
     raise ValueError
 
 
+def round_up(num):
+    if int(num) == num:
+        return int(num)
+    return int(num) + 1
+
+
 def tmsg(msg):
     return "{}# {}".format(time.strftime("%H:%M:%S"), msg)
+
 
 def logexception():
     # logger.exception("Exception information")

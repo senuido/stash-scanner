@@ -4,7 +4,10 @@ def itemToString(id, item):
     return "{};{};{};{}".format(id, item[0].isoformat(), "" if item[1] is None else item[1], item[2])
 
 def getDateTimeFromString(datestr):
-    return datetime.strptime(datestr, '%Y-%m-%dT%H:%M:%S.%f')
+    try:
+        return datetime.strptime(datestr, '%Y-%m-%dT%H:%M:%S.%f')
+    except ValueError:
+        return datetime.utcnow()
 
 class StateManager:
     STATE_ID_FNAME = "tmp\\stateid.dat"

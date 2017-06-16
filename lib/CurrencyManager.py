@@ -2,8 +2,9 @@ import json
 import pycurl
 
 import re
+from datetime import datetime
 
-from lib.Utility import getJsonFromURL, AppException, config, NoIndent, NoIndentEncoder, logexception
+from lib.Utility import getJsonFromURL, AppException, config, NoIndent, NoIndentEncoder, logexception, msgr
 
 _PRICE_REGEX = re.compile('\s*([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 INVALID_OVERRIDE = "Invalid override price \'{}\' for {}"
@@ -54,6 +55,8 @@ class CurrencyManager:
         self.cshorts = {}   # short to full name mapping
         self.crates = {}    # rates with overrides
 
+        self.last_update = None
+
         self.initialized = False
 
     def load(self):
@@ -102,9 +105,11 @@ class CurrencyManager:
         self.rates = rates
         self.cshorts = cshorts
         self.crates = crates
-
+        self.last_update = datetime.now()
         self.save()
         self.initialized = True
+
+        msgr.send_object(CurrencyInfo())
 
     def update(self):
         url = CurrencyManager.CURRENCY_API.format(config.league)
@@ -206,6 +211,16 @@ class CurrencyManager:
         if match is not None:
             return match.groups()
         return None
+
+
+class CurrencyInfo:
+    def __init__(self):
+        if cm.initialized:
+            self.rates = dict(cm.crates)
+            self.last_update = cm.last_update
+        else:
+            self.rates = None
+            self.last_update = None
 
 
 cm = CurrencyManager()

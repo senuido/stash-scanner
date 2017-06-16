@@ -578,7 +578,10 @@ class ItemInfo:
         self.name = get_item_name(item)
         self.type = item['frameType']
         self.corrupted = item['corrupted']
+        self.duplicated = item.get('duplicated', False)
         self.ilvl = item['ilvl']
+        self.w = item['w']
+        self.h = item['h']
 
         self.enchant = item.get('enchantMods', [])
         self.implicit = item.get('implicitMods', [])  #item.get('utilityMods', []))

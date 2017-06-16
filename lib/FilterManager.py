@@ -196,8 +196,6 @@ class FilterManager:
                 cf.enabled = comp.get('price', -1) >= min_val and fltr.category not in disabled_cat
                 filters.append(cf)
 
-        self.applyOverrides(filters)
-
         user_filters = []
         for fltr in self.userFilters:
             comp = self.compileFilter(fltr)
@@ -208,6 +206,8 @@ class FilterManager:
                 cf.enabled = fltr.enabled and fltr.category not in disabled_cat
                 user_filters.append(cf)
 
+        self.applyOverrides(filters)
+
         filters = user_filters + filters
 
         active_filters = [fltr for fltr in filters if fltr.enabled]
@@ -215,6 +215,8 @@ class FilterManager:
         with self.filters_lock:
             self.activeFilters = active_filters
             self.compiledFilters = filters
+
+        msgr.send_object(FiltersInfo(self))
 
     def applyOverrides(self, filters):
         for cf in filters:
@@ -361,3 +363,16 @@ def lower_json(x):
     if isinstance(x, str):
         return x.lower()
     return x
+
+
+class FiltersInfo:
+    def __init__(self, fm=None):
+
+        if fm:
+            self.filters = [cf.getDisplayTitle() for cf in fm.getActiveFilters()]
+            self.n_loaded = len(fm.getFilters())
+            self.n_active = len(self.filters)
+        else:
+            self.filters = None
+            self.n_loaded = 0
+            self.n_active = 0

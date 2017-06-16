@@ -99,6 +99,22 @@
 		}
 	},
 	{
+		"title": "Div Cards!",
+		"enabled": false,
+		"criteria": {
+			"type": ["divination card"],
+			"price": "20 ex"
+		}
+	},
+	{
+		"title": "Gems!",
+		"enabled": false,
+		"criteria": {
+			"type": ["gem"],
+			"price": "20 ex"
+		}
+	},
+	{
 		"title": "Expensive divination cards",
 		"enabled": false,
 		"criteria": {
