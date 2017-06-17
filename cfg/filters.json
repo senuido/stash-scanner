@@ -108,10 +108,10 @@
 	},
 	{
 		"title": "Gems!",
-		"enabled": false,
+		"enabled": true,
 		"criteria": {
 			"type": ["gem"],
-			"price": "20 ex"
+			"price": "15 eber"
 		}
 	},
 	{

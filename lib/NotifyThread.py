@@ -57,7 +57,7 @@ class NotifyThread(threading.Thread):
                     msgr.send_msg('Failed to register with Growl, Notifications will not work, '
                                   'please check your settings.', logging.WARN)
             except gntp.errors.NetworkError as e:
-                msgr.send_msg('Failed to send notification. Is Growl running?', logging.WARN)
+                msgr.send_msg('Failed to send notification. Make sure Growl is running.', logging.WARN)
 
             time.sleep(float(config.notification_duration))
             self.ntfy_queue.task_done()

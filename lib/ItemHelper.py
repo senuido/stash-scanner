@@ -74,7 +74,7 @@ class CompiledFilter:
         return self.getDisplayTitle()
 
     def getDisplayPrice(self):
-        if 'price' not in self.comp:
+        if 'price' not in self.comp:  # or self.comp['price'] <= 0:
             return ''
 
         ex_val = cm.convert(1, 'exalted')
@@ -251,6 +251,8 @@ class Filter:
                             types.append(id)
                             break
                 comp['type'] = types
+            elif key == 'name':
+                comp['name'] = [name.lower() for name in crit[key]]
 
             elif key == 'price':
                 comp[key] = Filter.compilePrice(crit[key], comp.get(key, None))

@@ -193,7 +193,7 @@ class FilterManager:
                 msgr.send_msg('Failed compiling filter {}'.format(fltr.getDisplayTitle()), logging.WARN)
             else:
                 cf = CompiledFilter(fltr, comp)
-                cf.enabled = comp.get('price', -1) >= min_val and fltr.category not in disabled_cat
+                cf.enabled = comp.get('price', 0) >= min_val and fltr.category not in disabled_cat
                 filters.append(cf)
 
         user_filters = []
@@ -210,6 +210,12 @@ class FilterManager:
 
         filters = user_filters + filters
 
+        for cf in filters:
+            if cf.enabled and 'price' in cf.comp and cf.comp['price'] <= 0:
+                cf.enabled = False
+                msgr.send_msg('Filter disabled: {}. price must be higher than zero.'.format(cf.getDisplayTitle()),
+                              logging.WARN)
+
         active_filters = [fltr for fltr in filters if fltr.enabled]
 
         with self.filters_lock:
@@ -219,6 +225,9 @@ class FilterManager:
         msgr.send_object(FiltersInfo(self))
 
     def applyOverrides(self, filters):
+        used_price_overrides = set()
+        used_state_overrides = set()
+
         for cf in filters:
             # title = re.match('(.+) \(.+\)', fltr.title.lower()).group(1)
 
@@ -226,18 +235,26 @@ class FilterManager:
             for id in self.price_overrides:
                 if id.lower() == cf.fltr.id:
                     override = self.price_overrides[id]
+                    used_price_overrides.add(id)
                     break
 
             state = cf.enabled
             for id in self.state_overrides:
                 if id.lower() == cf.fltr.id:
                     state = self.state_overrides[id]
+                    used_state_overrides.add(id)
 
             cf.enabled = state
             cf.comp['price'] = Filter.compilePrice(override, cf.comp['price'])
 
-            if cf.comp['price'] <= 0:
-                cf.enabled = False
+            # if cf.comp['price'] <= 0:
+            #     cf.enabled = False
+
+        for override in set(self.price_overrides) - used_price_overrides:
+            msgr.send_msg('Unused price override: {}'.format(override), logging.WARN)
+
+        for override in set(self.state_overrides) - used_state_overrides:
+            msgr.send_msg('Unused state override: {}'.format(override), logging.WARN)
 
     def validateOverrides(self):
         for key, state in self.state_overrides.items():

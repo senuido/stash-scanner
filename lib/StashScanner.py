@@ -95,6 +95,8 @@ class StashScanner:
             msgr.send_msg("Currency rates updated successfully.")
         except AppException as e:
             msgr.send_msg(e, logging.ERROR)
+            if cm.initialized:
+                msgr.send_msg('Using currency information from a local copy..', logging.WARN)
 
         if not cm.initialized:
             raise AppException("Failed to load currency information.")
