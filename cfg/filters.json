@@ -107,11 +107,50 @@
 		}
 	},
 	{
-		"title": "Gems!",
+		"title": "Empower Gem",
 		"enabled": true,
 		"criteria": {
 			"type": ["gem"],
-			"price": "15 eber"
+			"name": ["empower"],
+			"level": 2.4,
+			"level_max": 2
+		}
+	},
+	{
+		"title": "High Life Items",
+		"enabled": true,
+		"criteria": {
+			"type": ["rare"],
+			"total_life": 140
+		}
+	},
+	{
+		"title": "High Gems",
+		"enabled": true,
+		"criteria": {
+			"type": ["gem"],
+			"corrupted": false,
+			"quality": 14,
+			"level": 19,
+			"level_max": 19,
+			"exp": 70
+		}
+	},
+	{
+		"title": "High DPS Stuff",
+		"enabled": false,
+		"criteria": {
+			"type": ["unique"],
+			"dps": 550
+		}
+	},
+	{
+		"title": "High Res Rings",
+		"enabled": true,
+		"criteria": {
+			"base": "ring",
+			"type": ["rare", "unique"],
+			"total_res": 150
 		}
 	},
 	{
@@ -125,7 +164,7 @@
 	},
 	{
 		"title": "4 Mod Jewel",
-		"enabled": false,
+		"enabled": true,
 		"criteria": {
 			"type": ["rare"],
 			"base": "jewel",

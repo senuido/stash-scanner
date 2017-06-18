@@ -60,6 +60,10 @@
                         "id": "/criteria/corrupted",
                         "type": "boolean"
                     },
+					"unmodifiable": {
+                        "id": "/criteria/unmodifiable",
+                        "type": "boolean"
+                    },
                     "crafted": {
                         "id": "/criteria/crafted",
                         "type": "boolean"
@@ -125,7 +129,86 @@
                     },
 					"implicit": { "$ref": "#/definitions/itemmods" },
 					"explicit": { "$ref": "#/definitions/itemmods" },
-					"mods": { "$ref": "#/definitions/itemmods" }
+					"mods": { "$ref": "#/definitions/itemmods" },
+					"level": {
+                        "id": "/criteria/level",
+                        "minimum": 0,
+                        "type": "number"
+                    },
+					"level_max": {
+                        "id": "/criteria/level_max",
+                        "minimum": 0,
+                        "type": "number"
+                    },
+					"exp": {
+                        "id": "/criteria/exp",
+                        "minimum": 0,
+						"maximum": 100,
+                        "type": "number"
+                    },					
+					"quality": {
+                        "id": "/criteria/quality",
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+					"es": {
+                        "id": "/criteria/es",
+                        "minimum": 0,
+                        "type": "number"
+                    },
+					"armour": {
+                        "id": "/criteria/armour",
+                        "minimum": 0,
+                        "type": "number"
+                    },
+					"evasion": {
+                        "id": "/criteria/evasion",
+                        "minimum": 0,
+                        "type": "number"
+                    },
+					"total_life": {
+                        "id": "/criteria/total_life",
+                        "type": "number"
+                    },
+					"fres": {
+                        "id": "/criteria/fres",
+                        "type": "number"
+                    },
+					"cres": {
+                        "id": "/criteria/cres",
+                        "type": "number"
+                    },
+					"lres": {
+                        "id": "/criteria/lres",
+                        "type": "number"
+                    },
+					"chres": {
+                        "id": "/criteria/chres",
+                        "type": "number"
+                    },
+					"ele_res": {
+                        "id": "/criteria/ele_res",
+                        "type": "number"
+                    },
+					"total_res": {
+                        "id": "/criteria/total_res",
+                        "type": "number"
+                    },
+					"edps": {
+                        "id": "/criteria/epds",
+                        "minimum": 0,
+                        "type": "number"
+                    },
+					"pdps": {
+                        "id": "/criteria/pdps",
+                        "minimum": 0,
+                        "type": "number"
+                    },
+					"dps": {
+                        "id": "/criteria/dps",
+                        "minimum": 0,
+                        "type": "number"
+                    }
                 },
                 "type": "object",
 				"additionalProperties": false

@@ -1,21 +1,23 @@
 import copy
+import itertools
 import json
 import re
 from array import array
 from enum import IntEnum
 from itertools import chain
-
 from json import JSONEncoder
-from lib.Utility import config, AppException
+
+from joblib import Parallel, delayed
+
 from lib.CurrencyManager import cm
-from jsonschema import validate, ValidationError, SchemaError
-from joblib import Parallel, delayed, cpu_count
+from lib.Utility import config, AppException
 
 _FILTER_PRIO = {
     "base": 1,
     "price": 1,
     "ilvl": 1,
     "corrupted": 1,
+    "unmodifiable": 1,
     "crafted": 1,
     "type": 1,
     "sockets": 1,
@@ -24,12 +26,34 @@ _FILTER_PRIO = {
     "modcount_max": 1,
     "buyout": 1,
 
+    "level": 1,
+    "level_max": 1,
+    "exp": 1,
+    "quality": 1,
+
+    'fres': 6,
+    'cres': 6,
+    'lres': 6,
+    'chres': 6,
+    'ele_res': 6,
+    'total_res': 6,
+
+    'pdps': 3,
+    'edps': 3,
+    'dps': 3,
+
+    'es': 3,
+    'armour': 3,
+    'evasion': 3,
+
+    'total_life': 4,
+
     "links": 2,
     "name": 2,
 
     "implicit": 3,
-    "explicit": 4,
-    "mods": 4,
+    "explicit": 5,
+    "mods": 5,
 }
 
 _ITEM_TYPE = {0: 'normal',
@@ -43,9 +67,20 @@ _ITEM_TYPE = {0: 'normal',
               8: 'prophecy',
               9: 'relic'}
 
+
 _BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 _LOCALIZATION_REGEX = re.compile("<<.*>>")
 
+expr_level = re.compile('([0-9]+).*')
+phys_expr = re.compile('([0-9]+)% increased physical damage')
+es_expr = re.compile('([0-9]+)% increased (?!maximum).*energy shield$')
+armour_expr = re.compile('([0-9]+)% increased armour(?! during).*$')
+evasion_expr = re.compile('([0-9]+)% increased .*evasion(?! rating).*$')
+
+life_expr = re.compile('([\-+][0-9]+) to maximum life$')
+strength_expr = re.compile('([\-+][0-9]+) to strength')
+att_expr = re.compile('([\-+][0-9]+) to all attributes$')
+str_mods = [strength_expr, att_expr]
 
 class FilterEncoder(JSONEncoder):
     RE_COMPILED = type(re.compile(''))
@@ -99,34 +134,48 @@ class CompiledFilter:
 
     def checkItem(self, item):
         for key in self.crit_ordered:
-            if key == "type" and item.type not in self.comp[key]:
-                return False
-            if key == "price":
+            if key == "type":
+                if item.type not in self.comp[key]:
+                    return False
+            elif key == "price":
                 if item.price is not None and item.price > self.comp[key]:
                         return False
             elif key == "name":
                 if not any(name in item.name for name in self.comp[key]):
                     return False
-            elif key == "base" and self.comp[key] not in item.base:
-                return False
-            elif key == "ilvl" and self.comp[key] > item.ilvl:
-                return False
-            elif key == "corrupted" and self.comp[key] != item.corrupted:
-                return False
-            elif key == "crafted" and self.comp[key] != item.crafted:
-                return False
-            elif key == "sockets" and self.comp[key] > item.sockets:
-                return False
-            elif key == "links" and self.comp[key] > item.links:
-                return False
-            elif key == "stacksize" and self.comp[key] > item.stacksize:
-                return False
-            elif key == "modcount_min" and self.comp[key] > item.modcount:
-                return False
-            elif key == "modcount_max" and self.comp[key] < item.modcount:
-                return False
-            elif key == "buyout" and self.comp[key] != item.buyout:
-                return False
+            elif key == "base":
+                if self.comp[key] not in item.base:
+                    return False
+            elif key == "ilvl":
+                if self.comp[key] > item.ilvl:
+                    return False
+            elif key == "corrupted":
+                if self.comp[key] != item.corrupted:
+                    return False
+            elif key == "unmodifiable":
+                if self.comp[key] != (item.corrupted or item.mirrored):
+                    return False
+            elif key == "crafted":
+                if self.comp[key] != item.crafted:
+                    return False
+            elif key == "sockets":
+                if self.comp[key] > item.sockets:
+                    return False
+            elif key == "links":
+                if self.comp[key] > item.links:
+                    return False
+            elif key == "stacksize":
+                if self.comp[key] > item.stacksize:
+                    return False
+            elif key == "modcount_min":
+                if self.comp[key] > item.modcount:
+                    return False
+            elif key == "modcount_max":
+                if self.comp[key] < item.modcount:
+                    return False
+            elif key == "buyout":
+                if self.comp[key] != item.buyout:
+                    return False
             elif key == "implicit":
                 if not CompiledFilter._checkmods(self.comp[key]['mods'], item.implicit, self.comp[key]['match_min'], self.comp[key]['match_max']):
                     return False
@@ -136,12 +185,64 @@ class CompiledFilter:
             elif key == "mods":
                 if not CompiledFilter._checkmods(self.comp[key]['mods'], item.mods, self.comp[key]['match_min'], self.comp[key]['match_max']):
                     return False
+            elif key == "level":
+                if self.comp[key] > item.level:
+                    return False
+            elif key == "level_max":
+                if self.comp[key] < item.level:
+                    return False
+            elif key == "exp":
+                if self.comp[key] > item.exp:
+                    return False
+            elif key == "quality":
+                if self.comp[key] > item.quality:
+                    return False
+
+            elif key == "es":
+                if self.comp[key] > item.es:
+                    return False
+            elif key == "armour":
+                if self.comp[key] > item.armour:
+                    return False
+            elif key == "evasion":
+                if self.comp[key] > item.evasion:
+                    return False
+            elif key == "total_life":
+                if self.comp[key] > item.total_life:
+                    return False
+            elif key == "fres":
+                if self.comp[key] > item.fres:
+                    return False
+            elif key == "cres":
+                if self.comp[key] > item.cres:
+                    return False
+            elif key == "lres":
+                if self.comp[key] > item.lres:
+                    return False
+            elif key == "chres":
+                if self.comp[key] > item.chres:
+                    return False
+            elif key == "ele_res":
+                if self.comp[key] > item.ele_res:
+                    return False
+            elif key == "total_res":
+                if self.comp[key] > item.total_res:
+                    return False
+
+            elif key == "edps":
+                if self.comp[key] > item.edps:
+                    return False
+            elif key == "pdps":
+                if self.comp[key] > item.pdps:
+                    return False
+            elif key == "dps":
+                if self.comp[key] > item.dps:
+                    return False
 
         return True
 
     @staticmethod
     def _checkmods(exprs, mods, match_min, match_max):
-
         mods = list(mods)
 
         if match_min > len(mods) or match_max < match_min:
@@ -379,14 +480,14 @@ def get_item_name(item):
     return _LOCALIZATION_REGEX.sub('', "{} {}".format(item["name"], item["typeLine"])).strip()
 
 
-def get_item_buyout(item, stash):
-    price = get_item_price_raw(item, stash)
-    if price is not None:
-        match = _BO_PRICE_REGEX.match(price.lower())
-
-        if match is not None:
-            return float(match.group(2)) > 0
-    return False
+# def get_item_buyout(item, stash):
+#     price = get_item_price_raw(item, stash)
+#     if price is not None:
+#         match = _BO_PRICE_REGEX.match(price.lower())
+#
+#         if match is not None:
+#             return float(match.group(2)) > 0
+#     return False
 
 
 def get_item_stacksize(item):
@@ -434,19 +535,30 @@ def get_whisper_msg(item, stash):
                            item["x"] + 1, item["y"] + 1)
 
 
-def get_item_info(item, stash):
-    template = "{}{}: ilvl: {}, Links: {}, Implicit: {}, Explicit: {}, Price: {}, Stack: {}, Account: {}, " \
-               "Sockets: {}"
+# def get_item_info(item, stash):
+#     template = "{}{}: ilvl: {}, Links: {}, Implicit: {}, Explicit: {}, Price: {}, Stack: {}, Account: {}, " \
+#                "Sockets: {}"
+#
+#     price = get_item_price_raw(item, stash)
+#     if price is None:
+#         price = "n/a"
+#
+#     return template.format("!!! CORRUPTED !!! " if item["corrupted"] else "",
+#                            get_item_name(item), item["ilvl"],
+#                            get_item_links(item), item.get("implicitMods", []), item.get("explicitMods", []),
+#                            price, get_item_stacksize(item), stash["accountName"], get_item_sockets(item))
 
-    price = get_item_price_raw(item, stash)
-    if price is None:
-        price = "n/a"
+def get_prop_value(item, name):
+    for prop in itertools.chain(item.get('properties', []), item.get('additionalProperties', [])):
+        if prop['name'] == name:
+            return prop['values']  # get?
+    return None
 
-    return template.format("!!! CORRUPTED !!! " if item["corrupted"] else "",
-                           get_item_name(item), item["ilvl"],
-                           get_item_links(item), item.get("implicitMods", []), item.get("explicitMods", []),
-                           price, get_item_stacksize(item), stash["accountName"], get_item_sockets(item))
-
+def get_item_prop(item, name):
+    for prop in itertools.chain(item.get('properties', []), item.get('additionalProperties', [])):
+        if prop['name'] == name:
+            return prop  # get?
+    return None
 
 def parse_stashes(data, filters, stateMgr, resultHandler):
     league_tabs = 0
@@ -518,13 +630,98 @@ def lower_json(x):
     return x
 
 
+def get_item_pdps(quality, unmodifiable, mods, pavg, aps):
+    if unmodifiable or quality == 20:
+        return pavg*aps
+
+    total = 0
+    for mod in mods:
+        match = phys_expr.match(mod)
+        if match:
+            total += float(match.group(1))
+    return pavg * (120 + total) / (quality + 100 + total) * aps
+
+def get_item_es(quality, unmodifiable, mods, es):
+    if unmodifiable or quality == 20:
+        return es
+
+    total = 0
+    for mod in mods:
+        match = es_expr.match(mod)
+        if match:
+            total += float(match.group(1))
+    return es * (120 + total) / (quality + 100 + total)
+
+def get_item_armour(quality, unmodifiable, mods, armour):
+    if unmodifiable or quality == 20:
+        return armour
+
+    total = 0
+    for mod in mods:
+        match = armour_expr.match(mod)
+        if match:
+            total += float(match.group(1))
+    return armour * (120 + total) / (quality + 100 + total)
+
+def get_item_evasion(quality, unmodifiable, mods, evasion):
+    if unmodifiable or quality == 20:
+        return evasion
+
+    total = 0
+    for mod in mods:
+        match = armour_expr.match(mod)
+        if match:
+            total += float(match.group(1))
+    return evasion * (120 + total) / (quality + 100 + total)
+
+
+def get_item_life(mods):
+    life = 0
+    for mod in mods:
+        match = life_expr.match(mod)
+        if match:
+            life += float(match.group(1))
+
+    return life + get_item_strength(mods) / 2
+
+
+def get_item_strength(mods):
+    str = 0
+    for mod in mods:
+        for expr in str_mods:
+            match = expr.match(mod)
+            if match:
+                str += float(match.group(1))
+                break
+
+    return str
+
+
 class Item:
-    __slots__ = tuple([x for x in _FILTER_PRIO.keys() if 'modcount' not in x] + ['modcount'])
+    # __slots__ = tuple([x for x in _FILTER_PRIO.keys() if 'modcount' not in x] + ['modcount'])
+    __slots__ = ('_item', 'name', 'base', 'ilvl', 'links', 'corrupted', 'mirrored', 'stacksize', 'price',
+                 '_implicit', '_explicit', '_mods', 'sockets', 'buyout', 'type', 'crafted', 'modcount',
+                 'quality', '_armour', '_evasion', '_es', '_total_life', 'level', 'exp',
+                 '_fres', '_cres', '_lres', '_chres', '_ele_res', '_total_res',
+                 '_dps', '_pdps', '_edps')
+
+    res_mods = {
+        re.compile('((?:\+|-)[0-9]+)% to fire and cold resistances$'): ('_fres', '_cres'),
+        re.compile('((?:\+|-)[0-9]+)% to fire and lightning resistances$'): ('_fres', '_lres'),
+        re.compile('((?:\+|-)[0-9]+)% to cold and lightning resistances$'): ('_cres', '_lres'),
+        re.compile('((?:\+|-)[0-9]+)% to fire resistance$'): ('_fres',),
+        re.compile('((?:\+|-)[0-9]+)% to cold resistance$'): ('_cres',),
+        re.compile('((?:\+|-)[0-9]+)% to lightning resistance$'): ('_lres',),
+        re.compile('((?:\+|-)[0-9]+)% to chaos resistance$'): ('_chres',),
+        re.compile('((?:\+|-)[0-9]+)% to all elemental resistances$'): ('_fres', '_cres', '_lres')
+    }
 
     def __init__(self, item, stash):
+        self._item = item
         self.links = get_item_links(item)
         self.sockets = get_item_sockets(item)
         self.corrupted = item['corrupted']
+        self.mirrored = item.get('duplicated', False)
         self.ilvl = item['ilvl']
         self.base = item['typeLine'].lower()
         self.crafted = 'craftedMods' in item
@@ -535,16 +732,186 @@ class Item:
 
         self.name = get_item_name(item).lower()
         price = get_item_price(item, stash)
-        if price is None:
-            self.price = None
-        else:
-            self.price = cm.convert(float(price[0]), price[1])
+
+        self.price = cm.convert(float(price[0]), price[1]) if price is not None else None
         self.buyout = self.price is not None and self.price > 0
 
-        self.implicit = [mod.lower() for mod in item.get('implicitMods', [])]
-        self.explicit = [mod.lower() for mod in item.get('explicitMods', [])]
-        self.mods = self.implicit + self.explicit + \
-                    [mod.lower() for mod in (item.get('enchantMods', []) + item.get('craftedMods', []))]
+        self._implicit = None
+        self._explicit = None
+        self._mods = None
+
+        # # Properties and computed fields
+        # unmodifiable = self.corrupted or self.mirrored
+
+        lvl, exp = get_prop_value(item, 'Level'), get_item_prop(item, 'Experience')
+
+        self.level = float(lvl[0][0].split()[0]) if lvl else 0
+        self.exp = exp['progress'] * 100 if exp else 0
+
+        quality = get_prop_value(item, 'Quality')
+        self.quality = int(quality[0][0].strip('+%')) if quality else 0
+
+        self._es = None
+        self._armour = None
+        self._evasion = None
+        self._total_life = None
+
+        self._fres = None
+        self._cres = None
+        self._lres = None
+        self._chres = None
+        self._ele_res = None
+        self._total_res = None
+
+        self._edps = None
+        self._pdps = None
+        self._dps = None
+
+    @property
+    def implicit(self):
+        if self._implicit is None:
+            self._implicit = [mod.lower() for mod in self._item.get('implicitMods', [])]
+        return self._implicit
+
+    @property
+    def explicit(self):
+        if self._explicit is None:
+            self._explicit = [mod.lower() for mod in self._item.get('explicitMods', [])]
+        return self._explicit
+
+    @property
+    def mods(self):
+        if self._mods is None:
+            self._mods = itertools.chain(self.implicit, self.explicit, [mod.lower() for mod in
+                                                                        itertools.chain(self._item.get('enchantMods', []),
+                                                                                        self._item.get('craftedMods', []))])
+        return self._mods
+
+    @property
+    def es(self):
+        if self._es is None:
+            val = get_prop_value(self._item, 'Energy Shield')
+            self._es = get_item_es(self.quality, self.corrupted or self.mirrored,
+                                   self.mods, float(val[0][0])) if val else 0
+        return self._es
+
+    @property
+    def armour(self):
+        if self._armour is None:
+            armour = get_prop_value(self._item, 'Armour')
+            self._armour = get_item_armour(self.quality, self.corrupted or self.mirrored,
+                                           self.mods, float(armour[0][0])) if armour else 0
+        return self._armour
+
+    @property
+    def evasion(self):
+        if self._evasion is None:
+            val = get_prop_value(self._item, 'Evasion')
+            self._evasion = get_item_evasion(self.quality, self.corrupted or self.mirrored,
+                                             self.mods, float(val[0][0])) if val else 0
+        return self._evasion
+
+    @property
+    def total_life(self):
+        if self._total_life is None:
+            self._total_life = get_item_life(self.mods)
+        return self._total_life
+
+    @property
+    def edps(self):
+        if self._edps is None:
+            self._fill_dps()
+        return self._edps
+
+    @property
+    def pdps(self):
+        if self._pdps is None:
+            self._fill_dps()
+        return self._pdps
+
+    @property
+    def dps(self):
+        if self._dps is None:
+            self._fill_dps()
+        return self._dps
+
+    def _fill_dps(self):
+        aps = get_prop_value(self._item, 'Attacks per Second')
+        if aps:
+            aps = float(aps[0][0])
+
+            pavg, eavg, cavg = get_prop_value(self._item, 'Physical Damage'), \
+                               get_prop_value(self._item, 'Elemental Damage'), get_prop_value(self._item, 'Chaos Damage')
+
+            if pavg:
+                pavg = sum((float(i) for i in pavg[0][0].split('-'))) / 2
+                self._pdps = get_item_pdps(self.quality, self.corrupted or self.mirrored, self.mods, pavg, aps)
+            else:
+                self._pdps = 0
+
+            self._edps = sum((float(i) for i in eavg[0][0].split('-'))) / 2 * aps if eavg else 0
+            cavg = sum((float(i) for i in cavg[0][0].split('-')))/2 if cavg else 0
+
+            self._dps = self._pdps + self._edps + cavg * aps
+        else:
+            self._dps = 0
+            self._pdps = 0
+            self._edps = 0
+
+    @property
+    def fres(self):
+        if self._fres is None:
+            self._fill_res()
+        return self._fres
+
+    @property
+    def cres(self):
+        if self._cres is None:
+            self._fill_res()
+        return self._cres
+
+    @property
+    def lres(self):
+        if self._lres is None:
+            self._fill_res()
+        return self._lres
+
+    @property
+    def chres(self):
+        if self._chres is None:
+            self._fill_res()
+        return self._chres
+
+    @property
+    def ele_res(self):
+        if self._ele_res is None:
+            self._fill_res()
+        return self._ele_res
+
+    @property
+    def total_res(self):
+        if self._total_res is None:
+            self._fill_res()
+        return self._total_res
+
+    def _fill_res(self):
+        self._cres = 0
+        self._fres = 0
+        self._lres = 0
+        self._chres = 0
+
+        for mod in self.mods:
+            for expr in self.res_mods:
+                match = expr.match(mod)
+                if match:
+                    val = float(match.group(1))
+                    for res in self.res_mods[expr]:
+                        self.__setattr__(res, self.__getattribute__(res) + val)
+                    break
+
+        self._ele_res = self._fres + self._cres + self._lres
+        self._total_res = self._ele_res + self._chres
+
 
 class PropValueType(IntEnum):
     WhiteOrPhysical = 0
