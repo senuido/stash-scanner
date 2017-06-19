@@ -155,6 +155,12 @@ class CurrencyManager:
         except KeyError:
             return short
 
+    def toFull(self, short):
+        try:
+            return self.cshorts[short]
+        except KeyError:
+            return short
+
     @staticmethod
     def _convert(amount, short, cshorts, rates):
         if short in cshorts:

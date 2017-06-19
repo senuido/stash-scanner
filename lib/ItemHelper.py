@@ -67,8 +67,10 @@ _ITEM_TYPE = {0: 'normal',
               8: 'prophecy',
               9: 'relic'}
 
+float_expr = '[0-9]+|[0-9]+\s*\.\s*[0-9]+'
+_BO_PRICE_REGEX = re.compile('.*~(?:b/o|price)({num})(?:[/\\\\]({num}))?([a-z\-]+)'.format(num=float_expr))
 
-_BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
+# _BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 _LOCALIZATION_REGEX = re.compile("<<.*>>")
 
 expr_level = re.compile('([0-9]+).*')
@@ -440,16 +442,6 @@ class Filter:
         return new_price
 
 
-def get_item_price_raw(item, stash):
-    price = None
-    if "note" in item:
-        price = item["note"]
-    elif stash["stash"].startswith("~b/o ") or stash["stash"].startswith("~price "):
-    #elif PRICE_REGEX.match(stash["stash"]):
-        price = stash["stash"]
-
-    return price
-
 
 def get_item_sockets(item):
     return len(item["sockets"])
@@ -498,15 +490,59 @@ def get_item_modcount(item):
     return len(item.get('explicitMods', [])) + len(item.get('implicitMods', [])) + len(item.get('craftedMods', []))
 
 
+# def get_item_price_raw_old(item, stash):
+#     price = None
+#     if "note" in item:
+#         price = item["note"]
+#     elif stash["stash"].startswith("~b/o ") or stash["stash"].startswith("~price "):
+#     #elif PRICE_REGEX.match(stash["stash"]):
+#         price = stash["stash"]
+#
+#     return price
+
+# def get_item_price_old(item, stash):
+#     # Returns tuple (amount, currency)
+#
+#     price = get_item_price_raw(item, stash)
+#     if price is not None:
+#         match = _BO_PRICE_REGEX.match(price.lower())
+#
+#         if match is not None:
+#             return match.group(2, 3)
+#
+#     return None
+
+def get_item_price_raw(item, stash):
+    match = None
+    if 'note' in item:
+        if _BO_PRICE_REGEX.match(item['note'].lower().replace(' ', '')):
+            return item['note']
+
+    if _BO_PRICE_REGEX.match(stash['stash'].lower().replace(' ', '')):
+        return stash['stash']
+
+    return None
+
 def get_item_price(item, stash):
-    # Returns tuple (amount, currency)
+    match = None
+    if 'note' in item:
+        match = _BO_PRICE_REGEX.match(item['note'].lower().replace(' ', ''))
 
-    price = get_item_price_raw(item, stash)
+    if not match:
+        match = _BO_PRICE_REGEX.match(stash['stash'].lower().replace(' ', ''))
+
+    if match:
+        num, denom, curr = match.groups()
+        return float(num) / float(denom if denom else 1), curr
+    return None
+
+def get_item_price_whisper(item, stash):
+    # Returns format of {amount} {currency}
+
+    price = get_item_price(item, stash)
     if price is not None:
-        match = _BO_PRICE_REGEX.match(price.lower())
-
-        if match is not None:
-            return match.group(2, 3)
+        amount, currency = price
+        return int(amount) if int(amount) == amount else amount, cm.toWhisper(currency)
 
     return None
 
@@ -516,16 +552,15 @@ def get_item_price_display(item, stash):
     price = get_item_price(item, stash)
     if price is not None:
         amount, currency = price
-        return "{} {}".format(amount, cm.toWhisper(currency))
+        return int(amount) if int(amount) == amount else round(amount, 2), cm.toFull(currency)
 
-    return ""
+    return None
 
 def get_whisper_msg(item, stash):
     template = "@{} Hi, I would like to buy your {}{} listed{} in {} (stash tab \"{}\"; position: left {}, top {})"
 
-    price_str = get_item_price_display(item, stash)
-    if price_str != "":
-        price_str = " for " + price_str
+    price = get_item_price_whisper(item, stash)
+    price_str = " for {} {}".format(*price) if price is not None else ""
 
     size = get_item_stacksize(item)
     stack_size_str = "" if size == 1 else str(size) + " "
@@ -733,7 +768,7 @@ class Item:
         self.name = get_item_name(item).lower()
         price = get_item_price(item, stash)
 
-        self.price = cm.convert(float(price[0]), price[1]) if price is not None else None
+        self.price = cm.convert(*price) if price is not None else None
         self.buyout = self.price is not None and self.price > 0
 
         self._implicit = None
@@ -969,7 +1004,7 @@ class ItemInfo:
         self.properties = item.get('properties', []) + item.get('additionalProperties', [])
 
         self.note = item.get('note')
-        self.price = get_item_price_raw(item, stash)  #tmp
+        self.price = get_item_price_display(item, stash)
 
 
 

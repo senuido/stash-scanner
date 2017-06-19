@@ -71,6 +71,12 @@
 		}
 	},
 	{
+		"title": "Eternal Orb",
+		"criteria": {
+			"name": ["eternal orb"]
+		}
+	},
+	{
 		"title": "Corrupted Signal Fire",
 		"baseId": "the signal fire",
 		"enabled": false,
@@ -126,7 +132,7 @@
 	},
 	{
 		"title": "High Gems",
-		"enabled": true,
+		"enabled": false,
 		"criteria": {
 			"type": ["gem"],
 			"corrupted": false,

@@ -1,3 +1,4 @@
+import os
 import queue
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -509,6 +510,20 @@ class AppGUI(Tk):
         details.highlight_tags()
 
         details.insert(END, '\n'*2, 'tiny')
+
+        if item.price:
+            img_index = '{}.0'.format(int(float(details.index(END))) - 1)
+            amount, currency = item.price
+            details.insert(END, '\n{} x '.format(amount))
+            if currency in ItemDisplay.currency_images:
+                details.window_create(END, window=Label(self.txt_details, background=self.DETAILS_BG_COLOR,
+                                                        image=ItemDisplay.currency_images[currency]))
+            else:
+                details.insert(END, currency)
+
+            details.insert(END, '\n' * 2, 'tiny')
+
+            # details.tag_add('justified', img_index, END)
         self.lbl_item_img = Label(self.txt_details, background=self.DETAILS_BG_COLOR, image=obj.image_overlay)
         if item.sockets:
             self.lbl_item_img.bind('<Enter>', functools.partial(self.update_item_img, img=obj.image))
@@ -655,6 +670,7 @@ class ReadOnlyText(Text):
 class ItemDisplay:
     CACHE = {}
     thread_pool = ThreadPoolExecutor(max_workers=16)
+    currency_images = {}
 
     @classmethod
     def init(cls):
@@ -664,6 +680,14 @@ class ItemDisplay:
         cls.white = PIL.Image.open('res\\gen.png')
         cls.link_vertical = PIL.Image.open('res\\link_vertical.png')
         cls.link_horizontal = PIL.Image.open('res\\link_horizontal.png')
+
+        image_path = 'res\\currency'
+        image_list = [f for f in os.listdir(image_path) if
+                      f.endswith('.png') and os.path.isfile(os.path.join(image_path, f))]
+
+        for fname in image_list:
+            img = PIL.Image.open(os.path.join(image_path, fname)).resize((24,24), PIL.Image.ANTIALIAS)
+            cls.currency_images[os.path.splitext(fname)[0]] = PIL.ImageTk.PhotoImage(img)
 
         cls.s_height = cls.red.width
         cls.s_width = cls.red.height
@@ -682,7 +706,7 @@ class ItemDisplay:
         if self.item.icon in self.CACHE:
             self.onDownloadComplete(self.item.icon, self.CACHE[self.item.icon])
         else:
-            # print('Requesting Img: {}'.format(self.item.name))
+            # print('Requesting Img: {} - {}'.format(self.item.name, self.item.icon))
 
             # worker = Thread(target=getDataFromUrl, args=(self.item.icon, self.onDownloadComplete, 5), daemon=True)
             # worker.start()

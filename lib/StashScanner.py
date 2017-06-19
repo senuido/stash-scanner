@@ -161,7 +161,7 @@ class StashScanner:
         ahead = False
         data = ""
         sleep_time = 0
-        num_cores = cpu_count()
+        num_cores = os.cpu_count()
 
         msgr.send_msg("Scanning started")
         while not self._stop.wait(sleep_time):
