@@ -1,18 +1,17 @@
 import json
+import logging
+import logging.handlers
 import os
 import pycurl
 import time
 import traceback
 import uuid
+import warnings
 from configparser import ConfigParser
 from enum import IntEnum
 from io import BytesIO
-
-import logging
-import logging.handlers
 from queue import Queue
 
-import warnings
 warnings.filterwarnings('ignore', message='.*parallel loops cannot be nested below threads.*', category=UserWarning)
 
 os.makedirs('log', exist_ok=True)

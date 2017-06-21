@@ -1,20 +1,16 @@
+import logging
 import os
 import pycurl
 import time
-import traceback
 import winsound
-from enum import IntEnum
 from threading import Event
 
-import logging
-
 import lib.UpdateThread as ut
-from lib.CurrencyManager import CurrencyInfo
 from lib.FilterManager import FilterManager
 from lib.ItemHelper import *
 from lib.NotifyThread import NotifyThread
 from lib.StateManager import StateManager
-from lib.Utility import config, AppException, getJsonFromURL, tmsg, MsgType, msgr, logger, logexception
+from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception
 
 # API URLS
 NINJA_API = "http://api.poe.ninja/api/Data/GetStats"

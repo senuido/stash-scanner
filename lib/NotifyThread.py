@@ -1,10 +1,10 @@
+import logging
 import threading
 import time
 from queue import Queue
 
-import gntp.notifier
 import gntp.errors
-import logging
+import gntp.notifier
 import pyperclip
 
 from lib.Utility import config, msgr

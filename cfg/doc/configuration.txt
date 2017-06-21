@@ -1,4 +1,4 @@
-app.ini:
+app.ini: general app setting
  - `league` - league name (one of `Legacy, Hardcore Legacy, Standard, Hardcore Standard`)
  - `notification_duration` - minimum delay between notifications. if you get two notifications at once, this delay will allow you to respond convienently to both (since when a match is found a message is copied to the clipboard)
  - `request_delay` - minimal delay between requests. Tweak these if you're getting throttled consistently.
@@ -34,8 +34,9 @@ filters.config.json:
 	}
 	lets say headhunter price from API is 90ex. the first entry will change the generated filter with the id 'headhunter' (case insensitive) to have 85ex as max price.
 	the second entry will change the 'astramentis' filter to have 85% of API value as its max price.
-	if you're not sure what the id for a filter is, you can open up the filters.auto.json file (under 'tmp' directory) and look it up
+	if you're not sure what the id for a filter is, you can open up the filters.auto.json file (under 'tmp' directory) and look it up.
 	the format is the same as prices in filters.
+	NOTE: Overrides are applied AFTER the filters are compiled, which means if you inherit from a generated filter (using baseId) it will have the original price.
  - `default_price_override`: default price override for all generated filters.
 	for example, putting "* 0.9" would effectively make all generated filters to use 90% of the item value as the maximum price.
 	the format is the same as prices in filters.

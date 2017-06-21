@@ -1,18 +1,18 @@
+import functools
+import logging
 import os
 import queue
+import tkinter.font as tkfont
 from concurrent.futures import ThreadPoolExecutor
 from idlelib.WidgetRedirector import WidgetRedirector
 from queue import Queue
 from threading import Thread, Lock
 from tkinter import *
-import tkinter.font as tkfont
 from tkinter import messagebox
 from tkinter.ttk import *
-import PIL.Image, PIL.ImageTk
 
-import logging
-
-import functools
+import PIL.Image
+import PIL.ImageTk
 
 from lib.CurrencyManager import CurrencyInfo
 from lib.FilterManager import FiltersInfo

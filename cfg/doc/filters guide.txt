@@ -63,7 +63,8 @@ price			- maximum item price. structure is '<amount> <currency>'. for example: '
 
 quality			- minimum item quality
 level			- minimum level
-exp				- minimum gem experience
+level_max		- maximum level
+exp				- minimum gem experience percentage
 				  
 fres			- minimum total fire resistance
 cres			- minimum total cold resistance

@@ -1,9 +1,7 @@
-from threading import Thread, Event
-
 import logging
+from threading import Thread
 
-from lib.CurrencyManager import cm, CurrencyInfo
-from lib.FilterManager import FilterManager
+from lib.CurrencyManager import cm
 from lib.Utility import AppException, msgr, logexception
 
 

@@ -1,17 +1,15 @@
+import itertools
 import json
-
-import re
-
+import logging
 import pycurl
+import re
 import threading
 
-import itertools
-
-import logging
 from jsonschema import validate, ValidationError, SchemaError
-from lib.Utility import config, AppException, getJsonFromURL, str2bool, logexception, msgr
+
 from lib.CurrencyManager import cm
 from lib.ItemHelper import Filter, _ITEM_TYPE, FilterEncoder, CompiledFilter
+from lib.Utility import config, AppException, getJsonFromURL, str2bool, logexception, msgr
 
 FILTER_FILE_MISSING = "Missing file: {}"
 FILTER_INVALID_JSON = "Error decoding JSON: {} in file {}"

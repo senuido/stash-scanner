@@ -1,6 +1,5 @@
 import json
 import pycurl
-
 import re
 from datetime import datetime
 
