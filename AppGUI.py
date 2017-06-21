@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from idlelib.WidgetRedirector import WidgetRedirector
 from queue import Queue
+from textwrap import TextWrapper
 from threading import Thread, Lock
 from tkinter import *
 import tkinter.font as tkfont
@@ -96,6 +97,8 @@ class AppGUI(Tk):
     FONTS = ['Segoe UI', 'TkTextFont', 'Arial']#"sans-serif" #"Helvetica",Helvetica,Arial,sans-serif;
     IMG_NAME = 'item_image'
 
+    app_fonts = {}
+
     def __init__(self):
 
         super().__init__()
@@ -134,6 +137,7 @@ class AppGUI(Tk):
             self.protocol("WM_DELETE_WINDOW", self.on_close)
             self.scanner = None
             self.scan_thread = None
+            # self.details_img_lock = Lock()
             self.details_lock = Lock()
 
             self.start_scan()
@@ -164,11 +168,11 @@ class AppGUI(Tk):
         self.btn_toggle.grid(row=0, column=3, pady=5, padx=(5, 0), sticky='ns')
 
         self.btn_currency = Button(self.upper_frame, text="Currency Info",
-                                   command=lambda: self.update_details(self.currency_info))
+                                   command=lambda: self.update_details_lock(self.currency_info))
         self.btn_currency.grid(row=0, column=4, pady=5, padx=(5, 0), sticky='ns')
 
         self.btn_filters = Button(self.upper_frame, text="Filters Info",
-                                  command=lambda: self.update_details(self.filters_info))
+                                  command=lambda: self.update_details_lock(self.filters_info))
         self.btn_filters.grid(row=0, column=5, pady=5, padx=(5, 0), sticky='ns')
 
         self.lbl_spacer = Label(self.upper_frame)
@@ -183,10 +187,41 @@ class AppGUI(Tk):
         self.lst_msgs = Listbox(self.pane_wnd, background=self.BG_COLOR, selectmode=SINGLE)
         self.lst_msgs.bind('<<ListboxSelect>>', self.lst_selected)
 
-        self.txt_details = ReadOnlyText(self.pane_wnd, background=self.DETAILS_BG_COLOR, foreground=self.DEFAULT_COLOR,
-                                        padx=20, name='txt_details')
         self.pane_wnd.add(self.lst_msgs, weight=1)
-        # self.pane_wnd.add(self.txt_details)
+
+        # self.txt_details = ReadOnlyText(self.pane_wnd, background=self.DETAILS_BG_COLOR, foreground=self.DEFAULT_COLOR,
+        #                                 padx=20, name='txt_details')
+
+        gui_style = Style()
+        gui_style.configure('My.TFrame', background=self.DETAILS_BG_COLOR)
+        gui_style.configure('Filler.TFrame', background=self.DETAILS_BG_COLOR, padding=0, borderwidth=0)
+        # gui_style.layout("TFrame")
+
+        self.frm_details = Frame(self.pane_wnd, name='frm_details', style='My.TFrame')
+        self.frm_details.configure(padding=(30, 20))
+        self.frm_details.grid_configure(row=0, sticky='nsew')
+        self.frm_details.columnconfigure(2, weight=1, minsize=100)
+        self.frm_details.rowconfigure(1, weight=1)
+        # self.frm_details.grid_propagate(False)
+
+        self.txt_details = ReadOnlyText(self.frm_details, background=self.DETAILS_BG_COLOR, foreground=self.DEFAULT_COLOR,
+                                        name='txt_details', borderwidth=0) #, tabstyle='wordprocessor')
+
+        # self.txt_details.config(width=100)
+
+        self.txt_details.grid(row=0, column=2, rowspan=2, sticky='nsew')
+
+        # self.lbl_details_filler2 = Frame(self.frm_details, style='Filler.TFrame')
+        # self.lbl_details_filler2.grid(row=0, column=3, rowspan=2, sticky='nsew')
+
+        self.lbl_details_img = Label(self.frm_details, background=self.DETAILS_BG_COLOR, borderwidth=0)
+        self.lbl_details_img.grid(row=0, column=4, sticky='nsew')
+
+        self.lbl_details_filler = Frame(self.frm_details, style='Filler.TFrame')
+        self.lbl_details_filler.grid(row=1, column=4, sticky='nsew')
+
+        self.pane_wnd.add(self.frm_details)
+        self.pane_wnd.forget(self.frm_details)
 
         # self.results_scroll = Scrollbar(self.frame)
         # self.results_scroll.grid(row=0, column=1, sticky='nsew')
@@ -195,16 +230,16 @@ class AppGUI(Tk):
 
         font_fam = self.findfont(self.FONTS)
         # print('Using font family: {}'.format(font_fam))
-        font_default = tkfont.Font(name='DetailsDefault', family=font_fam, size=9)
-        font_bold = tkfont.Font(name='DetailsBold', family=font_fam, size=9, weight=tkfont.BOLD)
-        font_title = tkfont.Font(name='DetailsTitle', family=font_fam, size=13, weight=tkfont.BOLD)
-        font_title_big = tkfont.Font(name='DetailsTitleBig', family=font_fam, size=15, weight=tkfont.BOLD)
-        font_tag_big = tkfont.Font(name='DetailsTagBig', family=font_fam, size=12, weight=tkfont.BOLD)
-        font_tag = tkfont.Font(name='DetailsTag', family=font_fam, size=9, weight=tkfont.BOLD)
-        font_subtext = tkfont.Font(name='DetailsSubtext', family=font_fam, size=8)
-        font_underline = tkfont.Font(name='DetailsUnderline', family=font_fam, size=9, underline=True)
-        font_tiny = tkfont.Font(name='DetailsTiny', family=font_fam, size=5)
-        font_bold_italic = tkfont.Font(name='DetailsBoldItalic', family=font_fam, weight=tkfont.BOLD, slant=tkfont.ITALIC, size=9)
+        font_default = self.addfont(tkfont.Font(name='DetailsDefault', family=font_fam, size=9))
+        font_bold = self.addfont(tkfont.Font(name='DetailsBold', family=font_fam, size=9, weight=tkfont.BOLD))
+        font_title = self.addfont(tkfont.Font(name='DetailsTitle', family=font_fam, size=13, weight=tkfont.BOLD))
+        font_title_big = self.addfont(tkfont.Font(name='DetailsTitleBig', family=font_fam, size=15, weight=tkfont.BOLD))
+        font_tag_big = self.addfont(tkfont.Font(name='DetailsTagBig', family=font_fam, size=12, weight=tkfont.BOLD))
+        font_tag = self.addfont(tkfont.Font(name='DetailsTag', family=font_fam, size=9, weight=tkfont.BOLD))
+        font_subtext = self.addfont(tkfont.Font(name='DetailsSubtext', family=font_fam, size=8))
+        font_underline = self.addfont(tkfont.Font(name='DetailsUnderline', family=font_fam, size=9, underline=True))
+        font_tiny = self.addfont(tkfont.Font(name='DetailsTiny', family=font_fam, size=5))
+        font_bold_italic = self.addfont(tkfont.Font(name='DetailsBoldItalic', family=font_fam, weight=tkfont.BOLD, slant=tkfont.ITALIC, size=9))
 
         self.txt_details.configure(font=font_default)
 
@@ -268,6 +303,10 @@ class AppGUI(Tk):
         # msgr.send_msg("This is a warning message", logging.WARN)
         # msgr.send_msg("This is an error message", logging.ERROR)
 
+    def addfont(self, font):
+        self.app_fonts[font.name] = font
+        return font
+
     def findfont(self, names):
         "Return name of first font family derived from names."
         for name in names:
@@ -322,20 +361,29 @@ class AppGUI(Tk):
             # self.pane_wnd.forget(self.txt_details)
 
         if index in self.msg_tags:
+            self.update_details_lock(self.msg_tags[index], index)
+
+    def update_details_lock(self, obj, index=-1):
+        with self.details_lock:
             self.last_index = index
-            self.update_details(self.msg_tags[index])
+            self.update_details(obj)
 
     def update_details(self, obj):
         if isinstance(obj, ItemDisplay):
-            # print('updating details: {}'.format(obj.item.name))
             self.update_details_item(obj)
         elif isinstance(obj, CurrencyInfo):
             self.update_details_currency(obj)
         elif isinstance(obj, FiltersInfo):
             self.update_details_filters(obj)
 
-        if not any(self.txt_details.winfo_name() in child for child in self.pane_wnd.panes()):
-            self.pane_wnd.add(self.txt_details)
+        # if not any(self.txt_details.winfo_name() in child for child in self.pane_wnd.panes()):
+        #     self.pane_wnd.add(self.txt_details)
+
+        if not any(self.frm_details.winfo_name() in child for child in self.pane_wnd.panes()):
+            self.pane_wnd.add(self.frm_details)
+        else:
+            self.pane_wnd.forget(self.frm_details)
+            self.pane_wnd.add(self.frm_details)
 
     def update_details_filters(self, obj):
         if not isinstance(obj, FiltersInfo):
@@ -344,8 +392,7 @@ class AppGUI(Tk):
         self.clear_details()
         details = self.txt_details
 
-        details.configure(padx=40)
-        details.insert(END, '\n')
+        details.configure(padx=10)
         details.insert(END, 'Active Filters\n', ('justified', 'title'))
 
         if obj.filters is None:
@@ -356,11 +403,10 @@ class AppGUI(Tk):
         details.insert(END, 'Loaded {} filters, {} are active\n\n'.format(obj.n_loaded, obj.n_active),
                        ('justified', 'subtitle'))
 
-        # tabs = round_up(max(len(name) for name in obj.filters) / self.TK_TABWIDTH)
-        # tabs = max(tabs, 1)
-
         for fltr in obj.filters:
             details.insert(END, fltr + '\n')
+
+        details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitleBig'])
 
     def update_details_currency(self, obj):
         if not isinstance(obj, CurrencyInfo):
@@ -369,8 +415,8 @@ class AppGUI(Tk):
         self.clear_details()
         details = self.txt_details
 
-        details.configure(padx=40)
-        details.insert(END, '\n')
+        details.configure(padx=20)
+        # details.insert(END, '\n')
         details.insert(END, 'Currency Rates\n\n', ('justified', 'title'))
 
         if obj.rates is None:
@@ -389,6 +435,8 @@ class AppGUI(Tk):
         if obj.last_update:
             details.insert(END, '\nLast update: \t{}'.format(obj.last_update.strftime('%I:%M %p - %d, %b %Y')))
 
+        details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitleBig'])
+
     def update_details_item(self, obj):
         if not isinstance(obj, ItemDisplay):
             return
@@ -400,7 +448,7 @@ class AppGUI(Tk):
         details = self.txt_details
         item = obj.item
 
-        details.configure(padx=20)
+        details.configure(padx=0)
 
         if item.corrupted:
             details.insert(END, 'corrupted', 'corrupted')
@@ -524,25 +572,39 @@ class AppGUI(Tk):
             details.insert(END, '\n' * 2, 'tiny')
 
             # details.tag_add('justified', img_index, END)
-        self.lbl_item_img = Label(self.txt_details, background=self.DETAILS_BG_COLOR, image=obj.image_overlay)
+        # self.lbl_item_img = Label(self.txt_details, background=self.DETAILS_BG_COLOR, image=obj.image_overlay)
+        # if item.sockets:
+        #     self.lbl_item_img.bind('<Enter>', functools.partial(self.update_item_img, img=obj.image))
+        #     self.lbl_item_img.bind('<Leave>', functools.partial(self.update_item_img, img=obj.image_overlay))
+
+        # img_index = '{}.0'.format(int(float(details.index(END))) - 1)
+        # details.window_create(END, window=self.lbl_item_img)
+        #
+        # details.tag_add('justified', img_index, END)
+
+        if obj.image:
+            self.update_details_img(img=obj.image_overlay)
+
         if item.sockets:
-            self.lbl_item_img.bind('<Enter>', functools.partial(self.update_item_img, img=obj.image))
-            self.lbl_item_img.bind('<Leave>', functools.partial(self.update_item_img, img=obj.image_overlay))
+            self.lbl_details_img.bind('<Enter>', functools.partial(self.update_details_img, img=obj.image))
+            self.lbl_details_img.bind('<Leave>', functools.partial(self.update_details_img, img=obj.image_overlay))
 
-        img_index = '{}.0'.format(int(float(details.index(END))) - 1)
-        details.window_create(END, window=self.lbl_item_img)
-
-        details.tag_add('justified', img_index, END)
+        details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitle'])
 
         return details
 
     def clear_details(self):
-        with self.details_lock:
-            self.txt_details.delete(1.0, END)
+        # with self.details_img_lock:
+        #     self.txt_details.delete(1.0, END)
+        #
+        #     # cannot configure img label after text delete is called because
+        #     # it deletes the embedded window which is this label's parent
+        #     self.lbl_item_img = None
 
-            # cannot configure img label after text delete is called because
-            # it deletes the embedded window which is this label's parent
-            self.lbl_item_img = None
+        self.txt_details.delete(1.0, END)
+        self.lbl_details_img.configure(image='', padding=0)
+        self.lbl_details_img.unbind('<Enter>')
+        self.lbl_details_img.unbind('<Leave>')
 
     def clear_msgs(self):
         self.lst_msgs.delete(0, END)
@@ -591,10 +653,13 @@ class AppGUI(Tk):
                     elif isinstance(obj, ItemDisplay):
                         # selected = self.lst_msgs.curselection()
                         # if selected:
-                        curItem = self.msg_tags.get(self.last_index)
-                        if curItem and curItem is obj:
-                            # print('Updating image: {}'.format(obj.item.name))
-                            self.update_item_img(img=obj.image_overlay)
+
+                        with self.details_lock:
+                            curItem = self.msg_tags.get(self.last_index)
+                            if curItem and curItem is obj:
+                                # # print('Updating image: {}'.format(obj.item.name))
+                                # self.update_details_img(img=obj.image_overlay)
+                                self.update_details(curItem)
         except queue.Empty:
             pass
 
@@ -623,10 +688,14 @@ class AppGUI(Tk):
         # if self.scan_thread.is_alive():
         #     self.scan_thread.join()
 
-    def update_item_img(self, evt=None, img=None):
-        with self.details_lock:
-            if self.lbl_item_img:
-                self.lbl_item_img.config(image=img)
+    # def update_item_img(self, evt=None, img=None):
+    #     with self.details_img_lock:
+    #         if self.lbl_item_img:
+    #             self.lbl_item_img.config(image=img)
+
+    def update_details_img(self, evt=None, img=None):
+        if self.lbl_details_img:
+            self.lbl_details_img.config(image=img, padding=0)
 
 
 
@@ -666,6 +735,57 @@ class ReadOnlyText(Text):
                     self.delete(index, 'matchEnd')
                     self.insert(index, newtext, tag)
 
+    def update_size(self, font_default, font_title=None):
+        # hacky function to get the size right for the text widget
+        # 1. assumes the first line with content is the title
+        # 2. relies on input for correct fonts (which is fine in our case)
+
+        width = 0
+        found_title = font_title is None
+        title_width = 0
+
+        # txt = self.get("1.0", END)
+        # tw = TextWrapper(break_long_words=False, expand_tabs=True, tabsize=AppGUI.TK_TABWIDTH)
+
+        # for line in txt.expandtabs(int(AppGUI.TK_TABWIDTH)).split('\n'):
+        # for line in tw.fill(txt).split('\n'):
+        for line in self.get("1.0", END).split("\n"):
+            if not found_title and len(line):
+                title_width = round_up(font_title.measure(line) / font_default.measure(line) * len(line) + 1)
+                # print('title: {}, width: {}'.format(line, title_width))
+                found_title = True
+            else:
+                #     tabIndex = 0
+                #     delta = 0
+                #     index = 0
+                #     for c in line:
+                #         index += 1
+                #         if c == '\t':
+                #             tabIndex += 1
+                #             delta += max(0, tabIndex * AppGUI.TK_TABWIDTH - index - delta)
+                #             print('delta: {}, tabIndex: {}'.format(delta, tabIndex))
+
+                # calculate line width after expanding tabs in a 'tabular' fashion
+                # since this is the mode we're using with the Text widget (tabStyle)
+                x = 0
+                tabIndex = 0
+
+                for c in line:
+                    x += 1
+                    if c == '\t':
+                        tabIndex += 1
+                        if x < tabIndex*AppGUI.TK_TABWIDTH:
+                            x = tabIndex*AppGUI.TK_TABWIDTH
+                # if x + 1 > width:
+                #     print('{}(len {}): {}'.format(x+1, len(line), line))
+                width = max(width, x + 1)
+        # print('width: ', width)
+
+        if title_width >= width:
+            width = title_width + 2
+        # width = min(80, width)
+        width = max(30, width)
+        self.config(width=width)
 
 class ItemDisplay:
     CACHE = {}
@@ -682,12 +802,14 @@ class ItemDisplay:
         cls.link_horizontal = PIL.Image.open('res\\link_horizontal.png')
 
         image_path = 'res\\currency'
-        image_list = [f for f in os.listdir(image_path) if
-                      f.endswith('.png') and os.path.isfile(os.path.join(image_path, f))]
 
-        for fname in image_list:
-            img = PIL.Image.open(os.path.join(image_path, fname)).resize((24,24), PIL.Image.ANTIALIAS)
-            cls.currency_images[os.path.splitext(fname)[0]] = PIL.ImageTk.PhotoImage(img)
+        if os.path.isdir(image_path):
+            image_list = [f for f in os.listdir(image_path) if
+                          f.endswith('.png') and os.path.isfile(os.path.join(image_path, f))]
+
+            for fname in image_list:
+                img = PIL.Image.open(os.path.join(image_path, fname)).resize((24,24), PIL.Image.ANTIALIAS)
+                cls.currency_images[os.path.splitext(fname)[0]] = PIL.ImageTk.PhotoImage(img)
 
         cls.s_height = cls.red.width
         cls.s_width = cls.red.height

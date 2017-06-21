@@ -533,7 +533,8 @@ def get_item_price(item, stash):
 
     if match:
         num, denom, curr = match.groups()
-        return float(num) / float(denom if denom else 1), curr
+        denom = 1 if denom is None or float(denom) == 0 else float(denom)
+        return float(num) / denom, curr
     return None
 
 def get_item_price_whisper(item, stash):

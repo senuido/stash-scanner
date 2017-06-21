@@ -132,7 +132,7 @@
 	},
 	{
 		"title": "High Gems",
-		"enabled": false,
+		"enabled": true,
 		"criteria": {
 			"type": ["gem"],
 			"corrupted": false,

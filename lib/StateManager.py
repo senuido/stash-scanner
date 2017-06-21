@@ -74,9 +74,13 @@ class StateManager:
             line = self.fState.readline()
             while line:
                 fields = line.strip('\n').split(sep=";")
-                self.items[fields[0]] = [getDateTimeFromString(fields[1]),
-                                         None if fields[2] == "" else fields[2],
-                                         fields[3]]
+                try:
+                    self.items[fields[0]] = [getDateTimeFromString(fields[1]),
+                                             None if fields[2] == "" else fields[2],
+                                             fields[3]]
+                except IndexError:
+                    # 'ignoring entry {}'.format(line)
+                    pass  # silently ignore invalid entries
                 line = self.fState.readline()
         except FileNotFoundError:
             pass
