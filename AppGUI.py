@@ -1,14 +1,11 @@
 import os
 import queue
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from idlelib.WidgetRedirector import WidgetRedirector
 from queue import Queue
-from textwrap import TextWrapper
 from threading import Thread, Lock
 from tkinter import *
 import tkinter.font as tkfont
-# from tkinter import messagebox
 from tkinter import messagebox
 from tkinter.ttk import *
 import PIL.Image, PIL.ImageTk

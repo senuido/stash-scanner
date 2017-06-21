@@ -1,4 +1,4 @@
-lets start with a some examples: 
+lets start with some examples:
 this filter will match disfavour sold at or under 2.5ex:
 {
 	"title": "Cheap Atziri's Disfavour",
@@ -47,6 +47,7 @@ criteria options:
 base			- item base type. for example: 'crystal belt'
 ilvl			- minimum item level
 corrupted		- specifies if item is corrupted
+unmodifiable	- specifies if item cannot be modified (mirrored or corrupted)
 crafted			- specifies if item has crafted mods
 buyout		 	- specifies if item has a buyout price
 sockets		 	- minimum number of sockets
@@ -58,8 +59,27 @@ modcount_max 	- same as above but maximum number of mods
 name			- list of item names. for example: ['The Fiend', 'The Doctor']
 type			- list of item types. for example: ['normal', 'rare', 'magic']. valid values are 'normal', 'magic', 'rare', 'unique', 'gem', 'currency', 'divination card', 'quest item', 'prophecy', 'relic'
 price			- maximum item price. structure is '<amount> <currency>'. for example: '100 chaos' or '2 exalted' or '2 ex'
-				  if baseId is specified you can use the operators '/','*','+','-' to modify the base price. for example: '+1 ex' or '* 3' or '/ 2' 
+				  if baseId is specified you can use the operators '/','*','+','-' to modify the base price. for example: '+1 ex' or '* 3' or '/ 2'
 
+quality			- minimum item quality
+level			- minimum level
+exp				- minimum gem experience
+				  
+fres			- minimum total fire resistance
+cres			- minimum total cold resistance
+lres			- minimum total lightning resistance
+chres			- minimum chaos resistance
+ele_res			- minimum total elemental resistances
+total_res		- minimum total resistances
+
+dps 			- minimum dps
+pdps 			- minimum physical dps
+edps			- minimum elemental dps
+
+armour			- minimum potential (quality 20 if modifiable) armour
+evasion			- minimum potential evasion
+es				- minimum potential energy shield
+total_life		- minimum total life
 
 mods - matches expressions to filter item mods. inner structure:
 {
