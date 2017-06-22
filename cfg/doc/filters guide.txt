@@ -73,8 +73,8 @@ chres			- minimum chaos resistance
 ele_res			- minimum total elemental resistances
 total_res		- minimum total resistances
 
-dps 			- minimum dps
-pdps 			- minimum physical dps
+dps 			- minimum potential dps
+pdps 			- minimum potential physical dps
 edps			- minimum elemental dps
 
 armour			- minimum potential (quality 20 if modifiable) armour

@@ -119,6 +119,7 @@ class AppGUI(Tk):
         self.create_widgets()
 
         try:
+            self.iconbitmap('res\\app.ico')
             ItemDisplay.init()
         except IOError as e:
             messagebox.showerror('Resource error',
@@ -126,7 +127,7 @@ class AppGUI(Tk):
                                  'Make sure the files are valid and in place.'.format(e))
         except Exception as e:
             messagebox.showerror('Resource error',
-                                 'Failed to load image resources.\n Error: {}'.format(e))
+                                 'Failed to load image resources.\n{}'.format(e))
         else:
             self.after(100, self.handle_msgs)
             # self.lst_msgs.after(1000, self.handle_ui_msgs)

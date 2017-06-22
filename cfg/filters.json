@@ -44,14 +44,14 @@
 			"type": ["normal", "magic", "rare"],
 			"buyout": true,
 			"price": "6 exalted",
-			"corrupted": false
+			"unmodifiable": false
 		}
 	},
 	{
-		"title": "Corrupted Crystal Belt i84",
+		"title": "Corrupted/Mirrored Crystal Belt i84",
 		"baseId": "Crystal-i84",
 		"criteria": {
-			"corrupted": true,
+			"unmodifiable": true,
 			"price": " / 5"
 		}
 	},
@@ -87,13 +87,22 @@
 	},
 	{
 		"title": "Opal Ring i84",
+		"id": "opal-i84",
 		"criteria": {
 			"base": "opal ring",
 			"ilvl": 84,
 			"type": ["normal", "magic", "rare"],
 			"buyout": true,
 			"price": "1.8 exalted",
-			"corrupted": false
+			"unmodifiable": false
+		}
+	},
+	{
+		"title": "Corrupted Opal Ring i84",
+		"baseId": "opal-i84",
+		"criteria": {
+			"price": "/ 5",
+			"unmodifiable": true
 		}
 	},
 	{
@@ -113,26 +122,8 @@
 		}
 	},
 	{
-		"title": "Empower Gem",
-		"enabled": true,
-		"criteria": {
-			"type": ["gem"],
-			"name": ["empower"],
-			"level": 2.4,
-			"level_max": 2
-		}
-	},
-	{
-		"title": "High Life Items",
-		"enabled": true,
-		"criteria": {
-			"type": ["rare"],
-			"total_life": 140
-		}
-	},
-	{
 		"title": "High Gems",
-		"enabled": true,
+		"enabled": false,
 		"criteria": {
 			"type": ["gem"],
 			"corrupted": false,
@@ -152,11 +143,11 @@
 	},
 	{
 		"title": "High Res Rings",
-		"enabled": true,
+		"enabled": false,
 		"criteria": {
 			"base": "ring",
 			"type": ["rare", "unique"],
-			"total_res": 150
+			"total_res": 140
 		}
 	},
 	{
@@ -170,7 +161,7 @@
 	},
 	{
 		"title": "4 Mod Jewel",
-		"enabled": true,
+		"enabled": false,
 		"criteria": {
 			"type": ["rare"],
 			"base": "jewel",
