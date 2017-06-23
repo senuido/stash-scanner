@@ -6,11 +6,12 @@ from array import array
 from enum import IntEnum
 from itertools import chain
 from json import JSONEncoder
+from urllib.parse import urljoin
 
 from joblib import Parallel, delayed
 
 from lib.CurrencyManager import cm
-from lib.Utility import config, AppException
+from lib.Utility import AppException, isAbsoluteUrl
 
 _FILTER_PRIO = {
     "base": 1,
@@ -419,7 +420,7 @@ class Filter:
         new_price = 0
 
         if opr != '' and base_price is None:
-            raise AppException('Failed to compile price: {}. Missing base price.'.format(fltr_price))
+            raise CompileException('Price is relative but base price is missing.'.format(fltr_price))
 
         # factor
         if opr in ('', '+', '-'):
@@ -442,6 +443,9 @@ class Filter:
         return new_price
 
 
+# used to propogate reasons for compilation failure
+class CompileException(Exception):
+    pass
 
 def get_item_sockets(item):
     return len(item["sockets"])
@@ -596,12 +600,12 @@ def get_item_prop(item, name):
             return prop  # get?
     return None
 
-def parse_stashes(data, filters, stateMgr, resultHandler):
+def parse_stashes(data, filters, league, stateMgr, resultHandler):
     league_tabs = 0
     item_count = 0
 
     for stash in data["stashes"]:
-        if stash["public"] and stash["items"] and stash["items"][0]["league"] == config.league:
+        if stash["public"] and stash["items"] and stash["items"][0]["league"] == league:
             league_tabs += 1
             item_count += len(stash["items"])
             for item in stash["items"]:
@@ -620,12 +624,12 @@ def parse_next_id(data, stateMgr):
     stateMgr.saveState(data["next_change_id"])
 
 
-def parse_stashes_parallel(data, filters, stateMgr, resultHandler, numCores):
+def parse_stashes_parallel(data, filters, league, stateMgr, resultHandler, numCores):
     item_count = 0
 
     league_stashes = []
     for stash in data["stashes"]:
-        if stash["public"] and stash["items"] and stash["items"][0]["league"] == config.league:
+        if stash["public"] and stash["items"] and stash["items"][0]["league"] == league:
             item_count += len(stash["items"])
             league_stashes.append(stash)
 
@@ -977,9 +981,12 @@ class ItemType(IntEnum):
 
 class ItemInfo:
 
-    def __init__(self, item, stash):
+    def __init__(self, item, stash, baseUrl):
 
         self.icon = item['icon']
+        if not isAbsoluteUrl(self.icon):
+            self.icon = urljoin(baseUrl, self.icon)
+
         self.name = get_item_name(item)
         self.type = item['frameType']
         self.corrupted = item['corrupted']

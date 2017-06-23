@@ -10,16 +10,16 @@ from lib.FilterManager import FilterManager
 from lib.ItemHelper import *
 from lib.NotifyThread import NotifyThread
 from lib.StateManager import StateManager
-from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception
+from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception, getBaseUrl
 
 # API URLS
 NINJA_API = "http://api.poe.ninja/api/Data/GetStats"
 POE_API = "http://api.pathofexile.com/public-stash-tabs?id={}"
+POE_BETA_API = "http://betaapi.pathofexile.com/api/public-stash-tabs?id={}"
 # STASH https://www.pathofexile.com/character-window/get-stash-items?league=Legacy&tabs=1&tabIndex=1&accountName=##
 
 ERROR_JSON_FNAME = "log\\error.json"
 ALERT_FNAME = "res\\alert.wav"
-
 
 class StashScanner:
 
@@ -28,6 +28,9 @@ class StashScanner:
         self.stateMgr = StateManager()
         self._stop = Event()
         # self._stopped = Event()
+
+        self.poe_api_url = None
+        self.league = None
 
     def handleResult(self, item, stash, fltr):
         whisperMsg = get_whisper_msg(item, stash)
@@ -40,12 +43,18 @@ class StashScanner:
 
         msg = "{} {}\n{}".format(size_str, get_item_name(item), price).strip()
         self.notifier.send((fltr.getDisplayTitle(), msg, whisperMsg))
-        winsound.PlaySound(ALERT_FNAME, winsound.SND_ASYNC | winsound.SND_FILENAME)
+
+        try:
+            winsound.PlaySound(ALERT_FNAME, winsound.SND_ASYNC | winsound.SND_FILENAME)
+        except RuntimeError as e:
+            pass  # failed to play sound (probably because of excessive notifications)
+        except Exception as e:
+            msgr.send_msg("Error playing sound: {}".format(e), logging.ERROR)
 
         # msgr.send_tmsg(get_item_info(item, stash))
 
         try:
-            item_info = ItemInfo(item, stash)
+            item_info = ItemInfo(item, stash, getBaseUrl(self.poe_api_url))
         except (KeyError, IndexError) as e:
             msgr.send_msg("Error parsing item info, item details will not be displayed", logging.WARN)
             item_info = None
@@ -81,6 +90,16 @@ class StashScanner:
         msgr.send_msg("Scan initializing..")
         os.makedirs('tmp', exist_ok=True)
         os.makedirs('log', exist_ok=True)
+
+        config.beta = config.league.lower().startswith('beta ')
+        if config.beta:
+            self.poe_api_url = POE_BETA_API
+            self.league = re.sub('beta ', '', config.league, flags=re.IGNORECASE)
+            ninja_api_nextid_field = 'nextBetaChangeId'
+        else:
+            self.poe_api_url = POE_API
+            self.league = config.league
+            ninja_api_nextid_field = 'nextChangeId'
 
         cm.load()
         if cm.initialized:
@@ -142,12 +161,12 @@ class StashScanner:
             if data is None:
                 raise AppException("Error retrieving latest id from API, bad response")
 
-            if "nextChangeId" not in data:
-                raise AppException("Error retrieving latest id from API, missing nextChangeId key")
+            if ninja_api_nextid_field not in data:
+                raise AppException("Error retrieving latest id from API, missing {} key".format(ninja_api_nextid_field))
 
-            self.stateMgr.saveState(data["nextChangeId"])
+            self.stateMgr.saveState(data[ninja_api_nextid_field])
 
-        stashUrl = POE_API.format(self.stateMgr.getChangeId())
+        stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
 
         updater = ut.UpdateThread(self._stop, fm, 5 * 60)
         updater.start()
@@ -187,7 +206,7 @@ class StashScanner:
                 filters = fm.getActiveFilters()
 
                 if lastId != curId:
-                    data_count = parse_stashes_parallel(data, filters, self.stateMgr, self.handleResult, num_cores)
+                    data_count = parse_stashes_parallel(data, filters, self.league, self.stateMgr, self.handleResult, num_cores)
                 else:
                     parse_next_id(data, self.stateMgr)
 
@@ -196,7 +215,7 @@ class StashScanner:
                         ahead = True
 
                 lastId = curId
-                stashUrl = POE_API.format(self.stateMgr.getChangeId())
+                stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
 
                 parse_time = time.time() - last_parse
 

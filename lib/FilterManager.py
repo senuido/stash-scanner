@@ -8,7 +8,7 @@ import threading
 from jsonschema import validate, ValidationError, SchemaError
 
 from lib.CurrencyManager import cm
-from lib.ItemHelper import Filter, _ITEM_TYPE, FilterEncoder, CompiledFilter
+from lib.ItemHelper import Filter, _ITEM_TYPE, FilterEncoder, CompiledFilter, CompileException
 from lib.Utility import config, AppException, getJsonFromURL, str2bool, logexception, msgr
 
 FILTER_FILE_MISSING = "Missing file: {}"
@@ -32,7 +32,11 @@ _URLS = [
     "http://poeninja.azureedge.net/api/Data/GetUniqueWeaponOverview?league={}",
     "http://poeninja.azureedge.net/api/Data/GetUniqueArmourOverview?league={}",
     "http://poeninja.azureedge.net/api/Data/GetUniqueAccessoryOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetUniqueMapOverview?league={}"]
+    "http://poeninja.azureedge.net/api/Data/GetUniqueMapOverview?league={}",
+    "http://poeninja.azureedge.net/api/Data/GetProphecyOverview?league={}",
+    # "http://poeninja.azureedge.net/api/Data/GetFragmentOverview?league={}",
+    # "http://poeninja.azureedge.net/api/Data/GetMapOverview?league={}"
+]
 
 _VARIANTS = {
     "Physical":			"[0-9]+% increased Physical Damage$",
@@ -186,23 +190,23 @@ class FilterManager:
         filters = []
 
         for fltr in self.autoFilters:
-            comp = self.compileFilter(fltr)
-            if comp is None:
-                msgr.send_msg('Failed compiling filter {}'.format(fltr.getDisplayTitle()), logging.WARN)
-            else:
+            try:
+                comp = self.compileFilter(fltr)
                 cf = CompiledFilter(fltr, comp)
                 cf.enabled = comp.get('price', 0) >= min_val and fltr.category not in disabled_cat
                 filters.append(cf)
+            except CompileException as e:
+                msgr.send_msg('Failed compiling filter {}: {}'.format(fltr.title, e), logging.WARN)
 
         user_filters = []
         for fltr in self.userFilters:
-            comp = self.compileFilter(fltr)
-            if comp is None:
-                msgr.send_msg('Failed compiling filter {}'.format(fltr.getDisplayTitle()), logging.WARN)
-            else:
+            try:
+                comp = self.compileFilter(fltr)
                 cf = CompiledFilter(fltr, comp)
                 cf.enabled = fltr.enabled and fltr.category not in disabled_cat
                 user_filters.append(cf)
+            except CompileException as e:
+                msgr.send_msg('Failed compiling filter {}: {}'.format(fltr.title, e), logging.WARN)
 
         self.applyOverrides(filters)
 
@@ -290,13 +294,14 @@ class FilterManager:
                 # try using last compilation
                 compiledFilter = self.getFilterById(fltr.baseId, self.activeFilters, lambda x, y: x.fltr.id == y)
                 if compiledFilter is None:
-                    return None
+                    raise CompileException("Base filter '{}' not found.".format(fltr.baseId))
+                    # return None
                 baseComp = self.compileFilter(compiledFilter.fltr, path)
             else:
                 baseComp = self.compileFilter(baseFilter, path)
 
-        if baseComp is None:
-            return None
+        # if baseComp is None:
+        #     return None
 
         return fltr.compile(baseComp)
 
@@ -378,7 +383,6 @@ def lower_json(x):
     if isinstance(x, str):
         return x.lower()
     return x
-
 
 class FiltersInfo:
     def __init__(self, fm=None):

@@ -11,6 +11,7 @@ from configparser import ConfigParser
 from enum import IntEnum
 from io import BytesIO
 from queue import Queue
+from urllib.parse import urlparse, quote
 
 warnings.filterwarnings('ignore', message='.*parallel loops cannot be nested below threads.*', category=UserWarning)
 
@@ -108,6 +109,8 @@ def getJsonFromURL(url, handle=None, max_attempts=1):
     if not handle:
         handle = pycurl.Curl()
 
+    url = quote(url, safe=':/?=')
+
     buffer = BytesIO()
     handle.setopt(handle.URL, url)
     # handle.setopt(handle.VERBOSE, 1)
@@ -139,6 +142,7 @@ def getDataFromUrl(url, callback, max_attempts=1):
     # c.setopt(c.VERBOSE, 1)
     c.setopt(c.ENCODING, 'gzip, deflate')
     c.setopt(c.WRITEFUNCTION, buffer.write)
+    c.setopt(c.FOLLOWLOCATION, True)
 
     retrieved = False
     attempts = 0
@@ -176,6 +180,13 @@ def round_up(num):
 def tmsg(msg):
     return "{}# {}".format(time.strftime("%H:%M:%S"), msg)
 
+def getBaseUrl(url):
+    # parsed = urlparse(url)
+    # return urljoin('{}://'.format(parsed.scheme), parsed.netloc)
+    return urlparse(url).geturl()
+
+def isAbsoluteUrl(url):
+    return bool(urlparse(url).netloc)
 
 def logexception():
     # logger.exception("Exception information")
