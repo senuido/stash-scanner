@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 
 def itemToString(id, item):
@@ -118,3 +119,12 @@ class StateManager:
             self.fState.close()
         if self.fStateId:
             self.fStateId.close()
+
+    @classmethod
+    def clearCache(cls):
+        files = (cls.STATE_ID_FNAME, cls.STATE_FNAME)
+        for fname in files:
+            try:
+                os.remove(fname)
+            except FileNotFoundError:
+                pass

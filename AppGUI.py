@@ -2,7 +2,9 @@ import functools
 import logging
 import os
 import queue
+import threading
 import tkinter.font as tkfont
+import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from idlelib.WidgetRedirector import WidgetRedirector
 from queue import Queue
@@ -13,12 +15,20 @@ from tkinter.ttk import *
 
 import PIL.Image
 import PIL.ImageTk
+import pycurl
 
-from lib.CurrencyManager import CurrencyInfo
-from lib.FilterManager import FiltersInfo
-from lib.ItemHelper import ItemInfo, ItemType, PropDisplayMode
-from lib.StashScanner import StashScanner
-from lib.Utility import MsgType, msgr, getDataFromUrl, round_up
+from lib.ItemFilter import Filter
+from lib.CurrencyManager import CurrencyInfo, cm, CurrencyManager
+from lib.FilterManager import FiltersInfo, fm, FILTERS_CFG_FNAME, FilterManager
+from lib.ItemHelper import ItemType, PropDisplayMode, ItemSocketType
+from lib.StashScanner import StashScanner, ItemResult
+from lib.Utility import MsgType, msgr, getDataFromUrl, round_up, AppException, getJsonFromURL, config, AppConfiguration, \
+    logexception
+from ui.ConfigEditor import ConfigEditor
+from ui.FilterEditor import FilterEditor
+from ui.LoadingScreen import LoadingScreen
+from ui.ModsHelper import mod_helper
+from ui.ScrollingFrame import AutoScrollbar
 
 logger = logging.getLogger('ui')
 
@@ -51,6 +61,7 @@ class AppGUI(Tk):
     CRAFTED_BGCOLOR = '#0060BF'
     CRAFTED_COLOR = '#fff'
     REQ_COLOR = '#999'
+    MATCHES_COLOR = '#999'
     UNID_COLOR = '#C22626'
 
     TT_WHITE_COLOR = '#c8c8c8'
@@ -91,6 +102,11 @@ class AppGUI(Tk):
         ItemType.Relic: 'name-relic'
     }
 
+    VERSION_NUMBER = 'v1.0'
+    LATEST_URL = 'https://github.com/senuido/stash-scanner/raw/master/latest'
+    RELEASES_URL = 'https://github.com/senuido/stash-scanner/releases'
+    VERSION_TEXT = 'Stash Scanner {}'.format(VERSION_NUMBER)
+
     FONTS = ['Segoe UI', 'TkTextFont', 'Arial']#"sans-serif" #"Helvetica",Helvetica,Arial,sans-serif;
     IMG_NAME = 'item_image'
 
@@ -99,8 +115,9 @@ class AppGUI(Tk):
     def __init__(self):
 
         super().__init__()
+        self.withdraw()
 
-        self.msg_level = logging.INFO
+        self.msg_level = logging.WARNING
         self.msg_tags = {}
         self.ui_queue = Queue()
         self.last_index = -1
@@ -108,28 +125,32 @@ class AppGUI(Tk):
         self.initialized = False
         self.currency_info = CurrencyInfo()
         self.filters_info = FiltersInfo()
+        self.wnd_editor = None
+        self.init_error = None
+
+        self.t_version_check = None
 
         s = Style()
         # print(s.theme_names())
         s.theme_use('vista')
 
-        self.title("Stash Scanner by Senu")
-        self.geometry("1024x600")
-        self.center()
+        self.title("Stash Scanner by Senu {}".format(self.VERSION_NUMBER))
+        self.geometry("1366x768")
         self.create_widgets()
+        self.center()
+
+        self.deiconify()
+        self.wait_visibility()
 
         try:
-            self.iconbitmap('res\\app.ico')
+            self.iconbitmap(default='res\\app.ico')
             ItemDisplay.init()
-        except IOError as e:
-            messagebox.showerror('Resource error',
-                                 'Failed to load image resources.\n{}\n'
-                                 'Make sure the files are valid and in place.'.format(e))
-        except Exception as e:
-            messagebox.showerror('Resource error',
-                                 'Failed to load image resources.\n{}'.format(e))
+            Filter.init()
+        except AppException as e:
+            messagebox.showerror('Resource error', e, parent=self)
         else:
-            self.after(100, self.handle_msgs)
+            self.after(100, self.load)
+            # self.after(100, self.handle_msgs)
             # self.lst_msgs.after(1000, self.handle_ui_msgs)
 
             self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -138,15 +159,217 @@ class AppGUI(Tk):
             # self.details_img_lock = Lock()
             self.details_lock = Lock()
 
-            self.start_scan()
+            # self.start_scan()
             self.initialized = True
+
+    def _check_version(self):
+        try:
+            c = pycurl.Curl()
+            c.setopt(pycurl.SSL_VERIFYPEER, 0)
+            c.setopt(pycurl.SSL_VERIFYHOST, 0)
+            c.setopt(pycurl.FOLLOWLOCATION, 1)
+            data = getJsonFromURL(self.LATEST_URL, handle=c, max_attempts=3)
+            if data:
+                msgr.send_object(VersionInfo(data))
+        # except pycurl.error as e:
+        #     pass
+        except Exception as e:
+            logger.error('Failed checking for version updates. Unexpected error: {}'.format(e))
+
+    def check_version(self):
+        if not self.t_version_check or not self.t_version_check.is_alive():
+            self.t_version_check = threading.Thread(target=self._check_version, daemon=True)
+            self.t_version_check.start()
+
+    def check_version_callback(self, latest):
+        if not isinstance(latest, VersionInfo):
+            return
+
+        if latest.is_newer_than(self.VERSION_NUMBER):
+            answer = messagebox.askquestion('Update', 'A newer version is available, would you like to download it?', parent=self)
+            if answer == messagebox.YES:
+                webbrowser.open(self.RELEASES_URL)
+
+    def update_configuration(self, cfg):
+        if not isinstance(cfg, AppConfiguration):
+            raise TypeError('cfg needs to be of type AppConfiguration')
+
+        try:
+            if config.league == cfg.league:
+                config.update(cfg)
+                config.save()
+                return
+
+            answer = messagebox.askquestion('Settings',
+                                            'Changing league will stop active scans and close other windows, continue?',
+                                            parent=self)
+            if answer == messagebox.NO:
+                return
+
+            self.close_editor_window()
+
+            if self.is_scan_active:
+                self.stop_scan()
+                ls = LoadingScreen(self)
+                threading.Thread(target=self._stop_scan, args=(ls,)).start()
+                self.wait_window(ls)
+
+            try:
+                StashScanner.clearLeagueData()
+            except Exception as e:
+                messagebox.showerror('Settings',
+                                     'Failed to clear league data.\nError: {}\n'
+                                     'Make sure all files are closed and try again.'.format(e),
+                                     parent=self)
+                return
+
+            config.update(cfg)
+            config.save()
+
+            self.init_error = None
+            ls = LoadingScreen(self)
+            Thread(target=self.init_scanner, args=(ls,)).start()
+            self.wait_window(ls)
+
+            self.focus_set()
+            self.lift()
+
+            if self.init_error:
+                title, message = self.init_error.args
+                message += '\n{}'
+                messagebox.showerror(title, message.format('Application will now close.'), parent=self)
+                self.on_close()
+                return
+
+            self.currency_info = CurrencyInfo()
+            self.filters_info = FiltersInfo()
+
+            self.nb_cfg.onTabChange()
+        except Exception as e:
+            logexception()
+            logger.error('Unexpected error while attempting to change league.\n{}'.format(e))
+            messagebox.showerror('Save error', 'Unexpected error while trying to save settings:\n{}'.format(e))
+
+    def _stop_scan(self, ls):
+        ls.updateStatus('Stopping scan..', 10)
+        try:
+            self.scan_thread.join()
+        except RuntimeError as e:
+            logger.error('Error joining to scan thread, {}'.format(e))
+
+        ls.close()
+
+    def load(self):
+        ls = LoadingScreen(self)
+        # ls.lift()
+
+        self.check_version()
+        Thread(target=self.init_scanner, args=(ls,)).start()
+        self.wait_window(ls)
+
+        self.focus_set()
+        self.lift()
+
+        if self.init_error:
+            title, message = self.init_error.args
+            message += '\n{}'
+            messagebox.showerror(title, message.format('Application will now close.'), parent=self)
+            self.on_close()
+            return
+
+        self.nb_cfg.onTabChange()
+
+        self.after(100, self.handle_msgs)
+
+    def init_scanner(self, ls):
+        os.makedirs('tmp', exist_ok=True)
+        os.makedirs('log', exist_ok=True)
+
+        cm.init()
+        fm.init()
+
+        try:
+            ls.updateStatus('Loading settings', 0)
+            config.load()
+            # try:
+            #     config.load()
+            # except Exception as e:
+            #     raise AppException('Settings error', 'Failed loading settings. {}\n'.format(e))
+
+            ls.updateStatus('Loading currency information', 5)
+            try:
+                cm.load()
+            except AppException as e:
+                # raise AppException('Currency error', 'Error while loading currency information.\n{}'.format(e))
+                raise AppException('Currency error',
+                                   'Failed loading currency configuration. Error received:\n{}\n'
+                                   'Correct the error or delete the filters configuration file ({}) and a new '
+                                   'one will be generated for you.'.format(e, CurrencyManager.CURRENCY_FNAME))
+
+            if cm.needUpdate:
+                try:
+                    ls.updateStatus('Downloading currency information', 10)
+                    cm.update()
+                except AppException as e:
+                    pass
+
+            # if not cm.initialized:
+            #     raise AppException('Currency error', 'Failed to load currency information.')
+
+            ls.updateStatus('Loading filter configuration', 40)
+            try:
+                fm.loadConfig()
+            except AppException as e:
+                raise AppException('Filters config error',
+                                   'Failed loading filters configuration. Error received:\n{}\n'
+                                   'Correct the error or delete the filters configuration file ({}) and a new '
+                                   'one will be generated for you.'.format(e, FILTERS_CFG_FNAME))
+
+            filter_fallback = False
+
+            ls.updateStatus('Loading filters', 50)
+            try:
+                fm.loadAutoFilters()
+            except AppException as e:
+                # self.init_error = ('Filters error',
+                #                    'Failed to load user/generated filters.\n{}'.format(e))
+                # ls.close()
+                filter_fallback = True
+
+            if fm.needUpdate or filter_fallback:
+                try:
+                    ls.updateStatus('Generating filters from API', 55)
+                    fm.fetchFromAPI()
+                except AppException as e:
+                    if filter_fallback:
+                        raise AppException('Filters error',
+                                           'Failed to download and generate filters and unable to use a local copy.\n'
+                                           '{}'.format(e))
+
+            try:
+                ls.updateStatus('Loading user filters', 80)
+                fm.loadUserFilters(validate=False)
+            except AppException as e:
+                raise AppException('Filter error', '{}'.format(e))
+
+            fm.initialized = True
+
+            ls.updateStatus('Initializing..', 90)
+            self.init_error = None
+        except AppException as e:
+            self.init_error = e
+        except Exception as e:
+            logexception()
+            self.init_error = AppException('Initialization error', 'Unexpected error occurred while initializing:\n{}'.format(e))
+        finally:
+            ls.close()
 
     def create_widgets(self):
         self.configure(padx=10, pady=10)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
-        self.upper_frame = Frame(self, relief='groove')
+        self.upper_frame = Frame(self, relief=GROOVE)
         self.upper_frame.grid(row=0, sticky='nsew', ipadx=5)
         self.upper_frame.columnconfigure(8, weight=1)
 
@@ -156,13 +379,13 @@ class AppGUI(Tk):
         self.cmb_msglevel = Combobox(self.upper_frame, values=['Error', 'Warning', 'Info', 'Debug'],
                                      state='readonly')
         self.cmb_msglevel.bind('<<ComboboxSelected>>', self.set_msglevel)
-        self.cmb_msglevel.set('Info')
+        self.cmb_msglevel.set('Warning')
         self.cmb_msglevel.grid(row=0, column=1, pady=5, padx=(5, 0), sticky='ns')
 
         self.btn_clear = Button(self.upper_frame, text="Clear", command=self.clear_msgs)
         self.btn_clear.grid(row=0, column=2, pady=5, padx=(5, 0), sticky='ns')
 
-        self.btn_toggle = Button(self.upper_frame, text="Stop", command=self.toggle_scan)
+        self.btn_toggle = Button(self.upper_frame, text="Start", command=self.toggle_scan)
         self.btn_toggle.grid(row=0, column=3, pady=5, padx=(5, 0), sticky='ns')
 
         self.btn_currency = Button(self.upper_frame, text="Currency Info",
@@ -173,27 +396,60 @@ class AppGUI(Tk):
                                   command=lambda: self.update_details_lock(self.filters_info))
         self.btn_filters.grid(row=0, column=5, pady=5, padx=(5, 0), sticky='ns')
 
+        self.btn_editor = Button(self.upper_frame, text='Filter Editor', command=self.show_editor_window)
+        self.btn_editor.grid(row=0, column=6, pady=5, padx=(5, 0), sticky='ns')
+
         self.lbl_spacer = Label(self.upper_frame)
         self.lbl_spacer.grid(row=0, column=8)
 
         self.lbl_id_value = Label(self.upper_frame, text="", foreground="blue")
         self.lbl_id_value.grid(row=0, column=12, padx=(0, 10), sticky='e')
 
-        self.pane_wnd = PanedWindow(self, orient=HORIZONTAL)
-        self.pane_wnd.grid(row=1, column=0, sticky='nsew')
+        self.main_pane_wnd = PanedWindow(self, orient=VERTICAL)
+        self.main_pane_wnd.grid(row=1, column=0, sticky='nsew')
 
-        self.lst_msgs = Listbox(self.pane_wnd, background=self.BG_COLOR, selectmode=SINGLE)
+        self.pane_wnd = PanedWindow(self.main_pane_wnd, orient=HORIZONTAL)
+        self.nb_cfg = ConfigEditor(self.main_pane_wnd, self)
+
+        self.frm_console = Frame(self.pane_wnd)
+        self.frm_console.columnconfigure(1, weight=1)
+        self.frm_console.rowconfigure(0, weight=1)
+
+        self.lst_msgs = Listbox(self.frm_console, background=self.BG_COLOR, selectmode=SINGLE)
         self.lst_msgs.bind('<<ListboxSelect>>', self.lst_selected)
+        self.lst_msgs.grid(row=0, column=1, sticky='nsew')
 
-        self.pane_wnd.add(self.lst_msgs, weight=1)
+        scroll = AutoScrollbar(self.frm_console)
+        scroll.grid(row=0, column=0, sticky='nsew')
+        scroll.configure(command=self.lst_msgs.yview)
+        self.lst_msgs['yscrollcommand'] = scroll.set
 
         # self.txt_details = ReadOnlyText(self.pane_wnd, background=self.DETAILS_BG_COLOR, foreground=self.DEFAULT_COLOR,
         #                                 padx=20, name='txt_details')
 
-        gui_style = Style()
-        gui_style.configure('My.TFrame', background=self.DETAILS_BG_COLOR)
-        gui_style.configure('Filler.TFrame', background=self.DETAILS_BG_COLOR, padding=0, borderwidth=0)
-        # gui_style.layout("TFrame")
+        style = Style()
+        style.configure('My.TFrame', background=self.DETAILS_BG_COLOR)
+        style.configure('Thin.TFrame', padding=20, borderwidth=5)
+        style.configure('Borderless.TFrame', padding=0, borderwidth=0)
+        style.configure('Borderless.TLabelframe', padding=0, borderwidth=0)
+        style.configure('Dark.Borderless.TFrame', background=self.DETAILS_BG_COLOR)
+
+        # ui_style.configure('Default.TEntry', background='white', highlightbackground="#bebebe", highlightthickness=1, bd=1)
+        style.configure('Default.TEntry', padding=1)
+
+        entry_placeholder_font = tkfont.Font(name=style.lookup("TEntry", "font"), exists=True).copy()
+        entry_placeholder_font.config(slant=tkfont.ITALIC)
+        self.addfont(tkfont.Font(name='PlaceholderFont', exists=False, font=entry_placeholder_font))
+        style.configure('Placeholder.Default.TEntry', foreground='grey', font='PlaceholderFont')
+        style.configure('Autocomplete.TEntry')  # , borderwidth=0, highlightthickness=1)
+
+        # print(style.layout('TEntry'))
+        # print(style.element_options('TEntry.field'))
+        # print(style.element_options('TEntry.background'))
+        # print(style.element_options('TEntry.padding'))
+        # print(style.element_options('TEntry.textarea'))
+
+        # style.layout("TFrame")
 
         self.frm_details = Frame(self.pane_wnd, name='frm_details', style='My.TFrame')
         self.frm_details.configure(padding=(30, 20))
@@ -209,22 +465,16 @@ class AppGUI(Tk):
 
         self.txt_details.grid(row=0, column=2, rowspan=2, sticky='nsew')
 
-        # self.lbl_details_filler2 = Frame(self.frm_details, style='Filler.TFrame')
+        # self.lbl_details_filler2 = Frame(self.frm_details, style='Borderless.TFrame')
         # self.lbl_details_filler2.grid(row=0, column=3, rowspan=2, sticky='nsew')
 
-        self.lbl_details_img = Label(self.frm_details, background=self.DETAILS_BG_COLOR, borderwidth=0)
-        self.lbl_details_img.grid(row=0, column=4, sticky='nsew')
-
-        self.lbl_details_filler = Frame(self.frm_details, style='Filler.TFrame')
-        self.lbl_details_filler.grid(row=1, column=4, sticky='nsew')
+        self.frm_details_img = Frame(self.frm_details, style='Dark.Borderless.TFrame')
+        self.lbl_details_img = Label(self.frm_details_img, background=self.DETAILS_BG_COLOR, borderwidth=0)
+        self.lbl_details_img.grid(sticky='ne')
+        self.frm_details_img.grid(row=0, column=4, sticky='nsew')
 
         self.pane_wnd.add(self.frm_details)
         self.pane_wnd.forget(self.frm_details)
-
-        # self.results_scroll = Scrollbar(self.frame)
-        # self.results_scroll.grid(row=0, column=1, sticky='nsew')
-        # self.results_scroll.configure(command=self.lst_msgs.yview)
-        # self.lst_msgs['yscrollcommand'] = self.results_scroll.set
 
         font_fam = self.findfont(self.FONTS)
         # print('Using font family: {}'.format(font_fam))
@@ -237,7 +487,10 @@ class AppGUI(Tk):
         font_subtext = self.addfont(tkfont.Font(name='DetailsSubtext', family=font_fam, size=8))
         font_underline = self.addfont(tkfont.Font(name='DetailsUnderline', family=font_fam, size=9, underline=True))
         font_tiny = self.addfont(tkfont.Font(name='DetailsTiny', family=font_fam, size=5))
+        font_italic = self.addfont(tkfont.Font(name='DetailsItalic', family=font_fam, slant=tkfont.ITALIC, size=9))
         font_bold_italic = self.addfont(tkfont.Font(name='DetailsBoldItalic', family=font_fam, weight=tkfont.BOLD, slant=tkfont.ITALIC, size=9))
+
+        self.addfont(tkfont.Font(name='TreeDefault'))
 
         self.txt_details.configure(font=font_default)
 
@@ -270,7 +523,9 @@ class AppGUI(Tk):
         self.txt_details.tag_configure('implicit', font=font_underline)
 
         self.txt_details.tag_configure('requirement', foreground=self.REQ_COLOR, font=font_subtext)
+        self.txt_details.tag_configure('totals', foreground=self.MATCHES_COLOR)
         self.txt_details.tag_configure('bold', font=font_bold)
+        self.txt_details.tag_configure('italic', font=font_italic)
         self.txt_details.tag_configure('unid', foreground=self.UNID_COLOR, font=font_bold)
         self.txt_details.tag_configure('tiny', foreground=self.REQ_COLOR, font=font_tiny)
         self.txt_details.tag_configure('justified', justify=CENTER)
@@ -300,6 +555,18 @@ class AppGUI(Tk):
         # msgr.send_msg("This is a normal message")
         # msgr.send_msg("This is a warning message", logging.WARN)
         # msgr.send_msg("This is an error message", logging.ERROR)
+
+        # self.lst_msgs.insert(END, self.VERSION_TEXT)
+        # self.lst_msgs.itemconfigure(END, foreground=self.DEFAULT_COLOR)
+
+        self.pane_wnd.add(self.frm_console, weight=1)
+        self.main_pane_wnd.add(self.pane_wnd, weight=1)
+        self.main_pane_wnd.add(self.nb_cfg)
+
+        self.update_idletasks()
+        # main_pane_height = self.winfo_height() - self.upper_frame.winfo_reqheight()
+        # self.nb_cfg.config(height=round(main_pane_height/2.5))
+        self.nb_cfg.config(height=300)
 
     def addfont(self, font):
         self.app_fonts[font.name] = font
@@ -338,17 +605,36 @@ class AppGUI(Tk):
         self.scan_thread.start()
 
     def stop_scan(self):
-        if self.scan_thread.is_alive():
+        if self.is_scan_active:
             self.scanner.stop()
         else:
             self.btn_toggle.config(text="Start", state=NORMAL)
             self.btn_toggle.update_idletasks()
+
+    @property
+    def is_scan_active(self):
+        return self.scan_thread and self.scan_thread.is_alive()
+
+    def show_editor_window(self):
+        if self.wnd_editor is None or not self.wnd_editor.winfo_exists():
+            self.wnd_editor = FilterEditor(self)
+
+        if self.wnd_editor.winfo_exists():
+            self.wnd_editor.focus()
+
+    def close_editor_window(self):
+        if self.wnd_editor:
+            self.wnd_editor.onClose()
+        self.wnd_editor = None
 
     def set_msglevel(self, event):
         self.msg_level = logging._nameToLevel[self.cmb_msglevel.get().upper()]
 
     def lst_selected(self, event):
         w = event.widget
+        if not w.curselection():
+            return
+
         index = int(w.curselection()[0])
         # value = w.get(index)
 
@@ -367,6 +653,9 @@ class AppGUI(Tk):
             self.update_details(obj)
 
     def update_details(self, obj):
+        # if not any(self.frm_details.winfo_name() in child for child in self.pane_wnd.panes()):
+        #     self.pane_wnd.add(self.frm_details)
+
         if isinstance(obj, ItemDisplay):
             self.update_details_item(obj)
         elif isinstance(obj, CurrencyInfo):
@@ -393,18 +682,33 @@ class AppGUI(Tk):
         details.configure(padx=10)
         details.insert(END, 'Active Filters\n', ('justified', 'title'))
 
-        if obj.filters is None:
+        if not obj.n_active:
             details.insert(END, '\n', 'title')
-            details.insert(END, 'Filters weren\'t loaded yet.\nStart a scan and try again.\n', 'justified')
+            details.insert(END, 'No filters are active.', 'justified')
             return
 
         details.insert(END, 'Loaded {} filters, {} are active\n\n'.format(obj.n_loaded, obj.n_active),
                        ('justified', 'subtitle'))
 
-        for fltr in obj.filters:
-            details.insert(END, fltr + '\n')
+        if obj.user_filters:
+            details.insert(END, 'User filters:\n', 'bold')
+            for fltr in sorted(obj.user_filters):
+                details.insert(END, fltr + '\n')
+            details.insert(END, '\n')
 
-        details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitleBig'])
+        if obj.auto_filters:
+            details.insert(END, 'Generated filters:\n', 'bold')
+            for fltr in sorted(obj.auto_filters):
+                details.insert(END, fltr + '\n')
+            details.insert(END, '\n')
+
+        if obj.last_update:
+            details.insert(END, '\nLast update: \t{}'.format(obj.last_update.strftime('%I:%M %p - %d, %b %Y')))
+
+        txt_size = details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitleBig'])
+        # self.update_idletasks()
+        # self.pane_wnd.config(width=self.frm_details.winfo_reqwidth())
+        self.update_details_pane_size(txt_size)
 
     def update_details_currency(self, obj):
         if not isinstance(obj, CurrencyInfo):
@@ -433,7 +737,18 @@ class AppGUI(Tk):
         if obj.last_update:
             details.insert(END, '\nLast update: \t{}'.format(obj.last_update.strftime('%I:%M %p - %d, %b %Y')))
 
-        details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitleBig'])
+        txt_size = details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitleBig'])
+        self.update_details_pane_size(txt_size)
+
+    def update_details_pane_size(self, txt_size):
+        pass
+        # self.update_idletasks()
+        # size = txt_size + self.frm_details_img.winfo_width() + 30 * 2
+        # # print('padding: ', self.frm_details.cget('padding'))
+        # # print(self.pane_wnd.panes())
+        # # print(self.pane_wnd.pane(1))
+        # self.frm_details.config(width=size)
+
 
     def update_details_item(self, obj):
         if not isinstance(obj, ItemDisplay):
@@ -461,11 +776,11 @@ class AppGUI(Tk):
             for prop in item.requirements:
                 if reqs:
                     reqs += ' - '
-                if prop.get('values'):
+                if prop.values:
                     # ValueType logic here
-                    reqs += '{}: {}'.format(prop['name'], prop['values'][0][0])
+                    reqs += '{}: {}'.format(prop.name, prop.values[0].val)
                 else:
-                    reqs += '{}'.format(prop['name'])
+                    reqs += '{}'.format(prop.name)
 
         if item.ilvl:
             if reqs:
@@ -489,55 +804,70 @@ class AppGUI(Tk):
 
         if not item.identified:
             details.insert(END, 'Unidentified\n', 'unid')
-        elif item.explicit or item.crafted:
+        elif item.explicit or item.craft:
             for mod in item.explicit:
                 details.insert(END, "{}\n".format(mod))
-            for mod in item.crafted:
+            for mod in item.craft:
                 details.insert(END, 'crafted', 'crafted')
                 details.insert(END, " {}\n".format(mod))
 
+        if item.filter_totals:
+            details.insert(END, '\n')
+            totals = []
+            for mf_type, mf_expr, val in item.filter_totals:
+                val = int(val) if float(val) == int(val) else round(val, 2)
+                mod_text = mod_helper.modToText(mf_type, mf_expr).replace('#', str(val))
+                mod_text = mod_helper.stripTags(mod_text)
+                mod_text = '{}: {}'.format(mf_type.name.lower(), mod_text)
+                totals.append(mod_text)
+
+            for total in sorted(totals):
+                details.insert(END, total + '\n', 'totals')
+
         props = ''
         if item.properties:
-            if item.enchant or item.implicit or item.explicit or item.crafted or not item.identified:
+            if item.mods or not item.identified:
                 details.insert(END, '\n'*3, 'tiny')
 
             tabbed_props = [prop for prop in item.properties
-                            if prop['displayMode'] != PropDisplayMode.Format and prop.get('values')]
+                            if prop.display_mode != PropDisplayMode.Format and prop.values]
 
             if len(tabbed_props) <= 1:
                 tabs = 0
             else:
                 # prop_lengths = [len(prop['name']) if prop['displayMode'] != PropDisplayMode.Format and prop.get('values')
                 #                 else 0 for prop in item.properties]
-                prop_lengths = [len(prop['name']) for prop in tabbed_props]
+                prop_lengths = [len(prop.name) for prop in tabbed_props]
                 tabs = max(round_up(max(prop_lengths) / self.TK_TABWIDTH), 2)
 
             spacing = '\t' * tabs if tabs else ' '
-            for prop in sorted(item.properties, key=lambda x: x['displayMode']):
+            for prop in sorted(item.properties, key=lambda x: x.display_mode):
                 if props:
                     props += '\n'
-                if prop.get('values'):
+                if prop.values:
                     # PropDisplayMode logic here
-                    if prop['displayMode'] == PropDisplayMode.Progress:
+                    if prop.display_mode == PropDisplayMode.Progress:
                         # props += '{}:{spacing}{}% ({})'.format(prop['name'], round(prop['progress']*100),
                         #                                        prop['values'][0][0], spacing=spacing)
-                        props += '{}:{spacing}{}%'.format(prop['name'], round(prop['progress'] * 100), spacing=spacing)
-                    elif prop['displayMode'] == PropDisplayMode.Format:
-                        format_string = re.sub('%[0-9]+', '{}', prop['name'])
+                        props += '{}:{spacing}{}%'.format(prop.name, round(prop.progress * 100), spacing=spacing)
+                    elif prop.display_mode == PropDisplayMode.Format:
                         # PropValueType logic here
-                        props += format_string.format(*[val[0] for val in prop['values']])
+                        props += prop.format()
                     else:
                         # PropValueType logic here
-                        props += '{}:{spacing}{}'.format(prop['name'], prop['values'][0][0], spacing=spacing)
+                        props += '{}:{spacing}{}'.format(prop.name, prop.values[0].val, spacing=spacing)
                 else:
-                    props += '{}'.format(prop['name'])
+                    props += '{}'.format(prop.name)
 
             details.insert(END, props + '\n')
 
-        if item.duplicated:
+        if item.mirrored:
             if not props:
                 details.insert(END, '\n')
             details.insert(END, 'Mirrored\n', 'bold')
+
+        if item.prophecy:
+            details.insert(END, item.prophecy + '\n')
 
         # if item.sockets:
         #     if props or item.enchant or item.implicit or item.explicit or item.crafted or not item.identified:
@@ -557,9 +887,9 @@ class AppGUI(Tk):
 
         details.insert(END, '\n'*2, 'tiny')
 
-        if item.price:
+        if item.price_display:
             img_index = '{}.0'.format(int(float(details.index(END))) - 1)
-            amount, currency = item.price
+            amount, currency = item.price_display
             details.insert(END, '\n{} x '.format(amount))
             if currency in ItemDisplay.currency_images:
                 details.window_create(END, window=Label(self.txt_details, background=self.DETAILS_BG_COLOR,
@@ -568,6 +898,11 @@ class AppGUI(Tk):
                 details.insert(END, currency)
 
             details.insert(END, '\n' * 2, 'tiny')
+
+        if item.filter_name:
+            details.insert(END, '\n')
+            details.insert(END, 'Matched by \'{}\''.format(item.filter_name), 'italic')
+
 
             # details.tag_add('justified', img_index, END)
         # self.lbl_item_img = Label(self.txt_details, background=self.DETAILS_BG_COLOR, image=obj.image_overlay)
@@ -587,9 +922,8 @@ class AppGUI(Tk):
             self.lbl_details_img.bind('<Enter>', functools.partial(self.update_details_img, img=obj.image))
             self.lbl_details_img.bind('<Leave>', functools.partial(self.update_details_img, img=obj.image_overlay))
 
-        details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitle'])
-
-        return details
+        txt_size = details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitle'])
+        self.update_details_pane_size(txt_size)
 
     def clear_details(self):
         # with self.details_img_lock:
@@ -627,7 +961,7 @@ class AppGUI(Tk):
                     if msg_level >= self.msg_level or msg_level == logging.NOTSET:
                         self.lst_msgs.insert(END, text)
                         if tag:
-                            if isinstance(tag, ItemInfo):
+                            if isinstance(tag, ItemResult):
                                 item = ItemDisplay(tag, msgr.msg_queue)
                                 item.downloadImages()
                                 self.msg_tags[self.lst_msgs.size() - 1] = item
@@ -646,18 +980,21 @@ class AppGUI(Tk):
                     obj = msg[1]
                     if isinstance(obj, CurrencyInfo):
                         self.currency_info = obj
+                        self.nb_cfg.loadCurrency()
                     elif isinstance(obj, FiltersInfo):
                         self.filters_info = obj
+                        self.nb_cfg.loadPrices()
                     elif isinstance(obj, ItemDisplay):
                         # selected = self.lst_msgs.curselection()
                         # if selected:
-
                         with self.details_lock:
                             curItem = self.msg_tags.get(self.last_index)
                             if curItem and curItem is obj:
                                 # # print('Updating image: {}'.format(obj.item.name))
                                 # self.update_details_img(img=obj.image_overlay)
                                 self.update_details(curItem)
+                    elif isinstance(obj, VersionInfo):
+                        self.check_version_callback(obj)
         except queue.Empty:
             pass
 
@@ -681,7 +1018,9 @@ class AppGUI(Tk):
     #     self.after(200, self.handle_ui_msgs)
 
     def on_close(self):
-        self.scanner.stop()
+        if self.scanner:
+            self.scanner.stop()
+
         self.destroy()
         # if self.scan_thread.is_alive():
         #     self.scan_thread.join()
@@ -695,7 +1034,50 @@ class AppGUI(Tk):
         if self.lbl_details_img:
             self.lbl_details_img.config(image=img, padding=0)
 
+class VersionInfo:
+    def __init__(self, data):
+        self.version = data.get('version')
 
+    def is_newer_than(self, version):
+        curr = self._get_ver_nums(self.version)
+        v = self._get_ver_nums(version)
+        # sections
+        for n1, n2 in zip(curr, v):
+            # digits
+            for d1, d2 in zip(n1, n2):
+                if d1 > d2:
+                    return True
+                if d1 < d2:
+                    return False
+            if len(n1) > len(n2):
+                return True
+            if len(n1) < len(n2):
+                return False
+        if len(curr) > len(v):
+            return True
+        if len(curr) < len(v):
+            return False
+
+        return False
+
+    def _get_ver_nums(self, version):
+        m = re.match('v([0-9.]+)', version)
+        if m:
+            l = []
+            version = self._remove_trailing_zero_sections(str(m.group(1)))
+            for v in version.split('.'):
+                v = self._remove_zeroes(v)
+                if v == '':
+                    l.append([0])
+                else:
+                    l.append([int(c) for c in v])
+            return l
+        return []
+
+    def _remove_trailing_zero_sections(self, s):
+        return re.match('([0-9.]*?)[0.]*$', s).group(1)
+    def _remove_zeroes(self, s):
+        return re.match('([0-9]*?)[0]*$', s).group(1)
 
 class ReadOnlyText(Text):
 
@@ -781,38 +1163,49 @@ class ReadOnlyText(Text):
 
         if title_width >= width:
             width = title_width + 2
-        # width = min(80, width)
         width = max(30, width)
+        width = min(width, 75)
+        # width = min(width, 600 / font_default.measure('a'))
         self.config(width=width)
+        return font_default.measure('a' * round(width))
 
 class ItemDisplay:
     CACHE = {}
-    thread_pool = ThreadPoolExecutor(max_workers=16)
+    thread_pool = ThreadPoolExecutor(max_workers=8)
     currency_images = {}
 
     @classmethod
     def init(cls):
-        cls.red = PIL.Image.open('res\\str.png')
-        cls.blue = PIL.Image.open('res\\int.png')
-        cls.green = PIL.Image.open('res\\dex.png')
-        cls.white = PIL.Image.open('res\\gen.png')
-        cls.link_vertical = PIL.Image.open('res\\link_vertical.png')
-        cls.link_horizontal = PIL.Image.open('res\\link_horizontal.png')
+        try:
+            cls.red = PIL.Image.open('res\\str.png')
+            cls.blue = PIL.Image.open('res\\int.png')
+            cls.green = PIL.Image.open('res\\dex.png')
+            cls.white = PIL.Image.open('res\\gen.png')
+            cls.link_vertical = PIL.Image.open('res\\link_vertical.png')
+            cls.link_horizontal = PIL.Image.open('res\\link_horizontal.png')
 
-        image_path = 'res\\currency'
+            image_path = 'res\\currency'
 
-        if os.path.isdir(image_path):
-            image_list = [f for f in os.listdir(image_path) if
-                          f.endswith('.png') and os.path.isfile(os.path.join(image_path, f))]
+            if os.path.isdir(image_path):
+                image_list = [f for f in os.listdir(image_path) if
+                              f.endswith('.png') and os.path.isfile(os.path.join(image_path, f))]
 
-            for fname in image_list:
-                img = PIL.Image.open(os.path.join(image_path, fname)).resize((24,24), PIL.Image.ANTIALIAS)
-                cls.currency_images[os.path.splitext(fname)[0]] = PIL.ImageTk.PhotoImage(img)
+                for fname in image_list:
+                    img = PIL.Image.open(os.path.join(image_path, fname)).resize((24,24), PIL.Image.ANTIALIAS)
+                    cls.currency_images[os.path.splitext(fname)[0]] = PIL.ImageTk.PhotoImage(img)
 
-        cls.s_height = cls.red.width
-        cls.s_width = cls.red.height
+            cls.s_height = cls.red.width
+            cls.s_width = cls.red.height
+        except IOError as e:
+            raise AppException('Failed to load image resources.\n{}\n'
+                               'Make sure the files are valid and in place.'.format(e))
+        except Exception as e:
+            raise AppException('Failed to load image resources.\nUnexpected Error: {}'.format(e))
 
     def __init__(self, item, ui_queue):
+        if not isinstance(item, ItemResult):
+            raise TypeError('item is expected to be of type ItemResult')
+
         self.item = item
         self.image = None
         self.image_overlay = None
@@ -835,7 +1228,7 @@ class ItemDisplay:
     def onDownloadComplete(self, url, data):
         self.requested = False
         if not data:
-            # print('Request Failed: {}'. format(self.item.name))
+            # print('Request Failed: {}'. format(self.result.item.name))
             return
         if self.image:
             return
@@ -852,21 +1245,25 @@ class ItemDisplay:
             # notify ui
             self.ui_queue.put((MsgType.Object, self))
         except OSError as e:
-            with open('tmp\\{}.err.png'.format(self.item.name.strip()), mode='wb') as f:
+            item = self.item
+            with open('tmp\\{}.err.png'.format(item.name.strip()), mode='wb') as f:
                 f.write(data.getvalue())
-            logger.error('Image conversion failed: {}, Length: {}\t{}'.format(self.item.name, len(data.getvalue()), url))
+            logger.error('Image conversion failed: {}, Length: {}\t{}'.format(item.name, len(data.getvalue()), url))
 
     def updateOverlayImage(self, item_image):
-        if not self.item.sockets:
+        item = self.item
+
+        if not item.sockets:
             self.image_overlay = self.image
             return
 
         base_img = item_image.copy()
 
-        w = self.item.w
-        h = self.item.h
+        w = item.w
+        h = item.h
 
-        sockets = (len(self.item.links_string) + 1) / 2
+        links_string = item.links_string
+        sockets = (len(links_string) + 1) / 2
         n_line_sockets = min(w, sockets)
         n_col_sockets = min(h, round_up(sockets / w))
 
@@ -875,7 +1272,7 @@ class ItemDisplay:
         sy = round(base_img.height / 2 - n_col_sockets * self.s_height / 2)
         socket_list = []
 
-        for i, color in enumerate(re.split('[- ]', self.item.links_string)):
+        for i, color in enumerate(re.split('[- ]', links_string)):
             socket_index = i % w
             line_index = int(i / w)
 
@@ -884,11 +1281,12 @@ class ItemDisplay:
             else:
                 pos = (sx + self.s_width * (w - 1 - socket_index), sy + self.s_height * line_index)
 
-            if color == 'S':
+            color = ItemSocketType(color)
+            if color == ItemSocketType.Strength:
                 socket_type = self.red
-            elif color == 'D':
+            elif color == ItemSocketType.Dexterity:
                 socket_type = self.green
-            elif color == 'I':
+            elif color == ItemSocketType.Intelligence:
                 socket_type = self.blue
             else:
                 socket_type = self.white
@@ -897,7 +1295,7 @@ class ItemDisplay:
 
             socket_list.append((pos, socket_type))
 
-        for i, link in enumerate(filter(lambda x: x, re.split('[^- ]', self.item.links_string))):
+        for i, link in enumerate(filter(lambda x: x, re.split('[^- ]', links_string))):
             if link == ' ':
                 continue
 
@@ -921,12 +1319,11 @@ class ItemDisplay:
 
             socket_list.append((pos, link_type))
 
-        for item in socket_list:
-            pos, img = item
+        for socket in socket_list:
+            pos, img = socket
             base_img.paste(img, pos, img)
 
         self.image_overlay = PIL.ImageTk.PhotoImage(base_img)
-
 
 if __name__ == "__main__":
     app = AppGUI()

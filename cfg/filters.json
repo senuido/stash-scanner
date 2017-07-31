@@ -1,225 +1,133 @@
-[
-	{
-		"title": "Good Vinktar",
-		"criteria": {
-			"base": "Topaz Flask",
-			"type": ["Unique"],
-			"buyout": true,
-			"explicit": {
-				"mods": [
-					{
-						"expr": "Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect",
-						"values": [ 55 ]
-					},
-					{
-						"expr": "8[0-5]% increased Charges used"
-					}
-				]
-			},
-			"price": "100 chaos"
-		}
-	},
-	{
-		"title": "24% Sadima's Touch", 
-		"criteria": {
-			"base": "wool gloves", 
-			"type": ["relic"], 
-			"buyout": true,
-			"explicit": {
-				"mods": [
-					{
-						"expr": "24% increased Quantity of Items found"
-					}
-				]
-			},
-			"price": "2.5 exa"
-		}
-	},
-	{
-		"title": "Crystal Belt i84",
-		"id": "crystal-i84",
-		"criteria": {
-			"base": "crystal belt",
-			"ilvl": 84,
-			"type": ["normal", "magic", "rare"],
-			"buyout": true,
-			"price": "6 exalted",
-			"unmodifiable": false
-		}
-	},
-	{
-		"title": "Corrupted/Mirrored Crystal Belt i84",
-		"baseId": "Crystal-i84",
-		"criteria": {
-			"unmodifiable": true,
-			"price": " / 5"
-		}
-	},
-		{
-		"title": "Unique Crystal Belt i84",
-		"baseId": "Crystal-i84",
-		"criteria": {
-			"type": ["unique"],
-			"price": " / 20"
-		}
-	},
-	{
-		"title": "Pure Signal Fire",
-		"baseId": "the signal fire",
-		"criteria": {
-			"corrupted": false
-		}
-	},
-	{
-		"title": "Eternal Orb",
-		"criteria": {
-			"name": ["eternal orb"]
-		}
-	},
-	{
-		"title": "Corrupted Signal Fire",
-		"baseId": "the signal fire",
-		"enabled": false,
-		"criteria": {
-			"corrupted": true,
-			"price": " / 3"
-		}
-	},
-	{
-		"title": "Opal Ring i84",
-		"id": "opal-i84",
-		"criteria": {
-			"base": "opal ring",
-			"ilvl": 84,
-			"type": ["normal", "magic", "rare"],
-			"buyout": true,
-			"price": "1.8 exalted",
-			"unmodifiable": false
-		}
-	},
-	{
-		"title": "Corrupted Opal Ring i84",
-		"baseId": "opal-i84",
-		"criteria": {
-			"price": "/ 5",
-			"unmodifiable": true
-		}
-	},
-	{
-		"title": "Cheap 6-Links",
-		"criteria": {
-			"links": 6,
-			"buyout": true,
-			"price": "0.8 div"
-		}
-	},
-	{
-		"title": "Div Cards!",
-		"enabled": false,
-		"criteria": {
-			"type": ["divination card"],
-			"price": "20 ex"
-		}
-	},
-	{
-		"title": "High Gems",
-		"enabled": false,
-		"criteria": {
-			"type": ["gem"],
-			"corrupted": false,
-			"quality": 14,
-			"level": 19,
-			"level_max": 19,
-			"exp": 70
-		}
-	},
-	{
-		"title": "High DPS Stuff",
-		"enabled": false,
-		"criteria": {
-			"type": ["unique"],
-			"dps": 550
-		}
-	},
-	{
-		"title": "High Res Rings",
-		"enabled": false,
-		"criteria": {
-			"base": "ring",
-			"type": ["rare", "unique"],
-			"total_res": 140
-		}
-	},
-	{
-		"title": "Expensive divination cards",
-		"enabled": false,
-		"criteria": {
-			"type": ["divination card"],
-			"name": ["the fiend", "the doctor"],
-			"price": "5 ex"
-		}
-	},
-	{
-		"title": "4 Mod Jewel",
-		"enabled": false,
-		"criteria": {
-			"type": ["rare"],
-			"base": "jewel",
-			"modcount_min": 4,
-			"explicit": {
-					"match_min": 3,
-					"mods": [
-						{
-							"expr": "\\+?[0-9]+% to critical strike multiplier(?:$|.*(?:skills|spells))",
-							"required": true
-						},
-						{
-							"expr": "\\+?[0-9]+% to critical strike multiplier(?:$|.*(?:skills|spells))",
-							"required": true
-						},
-						{
-							"expr": "[0-9]+% increased fire damage$"
-						},
-						{
-							"expr": "[0-9]+% increased spell damage while holding a shield"
-						},
-						{
-							"expr": "\\+[0-9]+% to Critical Strike Multiplier with fire Skills"
-						},
-						{
-							"expr": "\\+[0-9]+% to Critical Strike Multiplier with cold Skills"
-						},
-						{
-							"expr": "\\+[0-9]+% to Critical Strike Multiplier with lightning Skills"
-						},
-						
-						{
-							"expr": "[0-9]+% increased Attack Speed while holding a Shield"
-						},
-						{
-							"expr": "[0-9]+% increased Attack Speed with (daggers|maces)"
-						},
-						{
-							"expr": "[0-9]+% increased Attack Speed with One Handed Melee Weapons"
-						},
-						
-						{
-							"expr": "[0-9]+% increased spell damage$"
-						},
-						{
-							"expr": "\\+[0-9]+% to critical strike multiplier for spells"
-						},
-						{
-							"expr": "\\+[0-9]+% to critical strike multiplier with elemental skills"
-						},
-						{
-							"expr": "[0-9]+% increased projectile damage$"
-						},
-						{
-							"expr": "[0-9]+% increased area damage$"
-						}
-					]
-			}
-		}
-	}
-]
+{
+    "last_update": "2017-07-31T02:54:40.629102",
+    "filters": [
+        {
+            "baseid": "",
+            "id": "",
+            "enabled": true,
+            "criteria": {
+                "buyout": true,
+                "price_max": "100 chao",
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "max": null,
+                                "expr": "Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect$",
+                                "min": 45.0,
+                                "type": "explicit"
+                            },
+                            {
+                                "max": 85.0,
+                                "expr": "([0-9]+)% increased Charges used$",
+                                "min": null,
+                                "type": "explicit"
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "base": "topaz flask",
+                "type": [
+                    "unique"
+                ]
+            },
+            "category": "user",
+            "title": "Vinktar"
+        },
+        {
+            "baseid": "",
+            "id": "crystal-i84",
+            "enabled": true,
+            "criteria": {
+                "buyout": true,
+                "ilvl_min": 84.0,
+                "base": "crystal belt",
+                "price_max": "60 exalted",
+                "modifiable": true,
+                "type": [
+                    "normal",
+                    "magic",
+                    "rare"
+                ]
+            },
+            "category": "user",
+            "title": "Crystal Belt i84"
+        },
+        {
+            "baseid": "crystal-i84",
+            "id": "",
+            "enabled": true,
+            "criteria": {
+                "price_max": "/5",
+                "modifiable": false
+            },
+            "category": "user",
+            "title": "Corrupted/Mirrored Crystal Belt i84"
+        },
+        {
+            "baseid": "crystal-i84",
+            "id": "",
+            "enabled": true,
+            "criteria": {
+                "price_max": "/20",
+                "type": [
+                    "unique"
+                ]
+            },
+            "category": "user",
+            "title": "Unique Crystal Belt i84"
+        },
+        {
+            "baseid": "_the_signal_fire",
+            "id": "",
+            "enabled": false,
+            "criteria": {
+                "corrupted": false
+            },
+            "category": "user",
+            "title": "Pure Signal Fire"
+        },
+        {
+            "baseid": "_the_signal_fire",
+            "id": "",
+            "enabled": false,
+            "criteria": {
+                "price_max": "/ 3",
+                "corrupted": true
+            },
+            "category": "user",
+            "title": "Corrupted Signal Fire"
+        },
+        {
+            "baseid": "",
+            "id": "opal-i84",
+            "enabled": true,
+            "criteria": {
+                "buyout": true,
+                "ilvl_min": 84.0,
+                "base": "opal ring",
+                "price_max": "18 exalted",
+                "modifiable": true,
+                "type": [
+                    "normal",
+                    "magic",
+                    "rare"
+                ]
+            },
+            "category": "user",
+            "title": "Opal Ring i84"
+        },
+        {
+            "baseid": "opal-i84",
+            "id": "",
+            "enabled": true,
+            "criteria": {
+                "price_max": "/ 5",
+                "modifiable": false
+            },
+            "category": "user",
+            "title": "Corrupted Opal Ring i84"
+        }
+    ]
+}

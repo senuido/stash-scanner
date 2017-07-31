@@ -6,11 +6,12 @@ from queue import Queue
 import gntp.errors
 import gntp.notifier
 import pyperclip
+import winsound
 
 from lib.Utility import config, msgr
 
 _APP_NAME = "Stash Scanner"
-
+ALERT_FNAME = "res\\alert.wav"
 
 class NotifyThread(threading.Thread):
     def __init__(self,):
@@ -39,11 +40,20 @@ class NotifyThread(threading.Thread):
                 break
             title, msg, whisperMsg = item
 
-            pyperclip.copy(whisperMsg)
+            if config.notify_copy_msg:
+                pyperclip.copy(whisperMsg)
+
             delay = float(config.notification_duration)
 
             if delay > 0 and self.ntfy_queue.qsize():
                 title = "{} ({} more)".format(title, self.ntfy_queue.qsize())
+
+            try:
+                winsound.PlaySound(ALERT_FNAME, winsound.SND_ASYNC | winsound.SND_FILENAME)
+            except RuntimeError as e:
+                pass  # failed to play sound (probably because of excessive notifications)
+            except Exception as e:
+                msgr.send_msg("Error playing sound: {}".format(e), logging.ERROR)
 
             try:
                 if not self.registered:

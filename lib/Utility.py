@@ -3,6 +3,7 @@ import logging
 import logging.handlers
 import os
 import pycurl
+import re
 import time
 import traceback
 import uuid
@@ -12,6 +13,7 @@ from enum import IntEnum
 from io import BytesIO
 from queue import Queue
 from urllib.parse import urlparse, quote
+from datetime import timezone
 
 warnings.filterwarnings('ignore', message='.*parallel loops cannot be nested below threads.*', category=UserWarning)
 
@@ -32,6 +34,8 @@ root_logger.addHandler(fh)
 root_logger.addHandler(ch)
 logger = root_logger
 # logger = logging.getLogger('scanner') #logging.getLogger(__name__)
+
+RE_COMPILED_TYPE = type(re.compile(''))
 
 class MsgType(IntEnum):
     ScanStopped = 0
@@ -72,38 +76,112 @@ class Messenger:
 class AppException(Exception):
     pass
 
+# used to propogate reasons for compilation failure
+class CompileException(AppException):
+    pass
 
-class AppConfiguration(object):
+class AppConfiguration:
     CONFIG_FNAME = "cfg\\app.ini"
-    section_names = ['Settings']
-    defaults = {'league': 'Legacy',
-                'request_delay': 1,
-                'notification_duration': 4,
-                'scan_mode': 'latest'}
+    section_name = 'Settings'
+    # section_names = ['Settings']
 
-    def __init__(self):
+    def __init__(self, load=True):
+
+        self.league = None
+        self.request_delay = None
+        self.notify = None
+        self.notify_copy_msg = None
+        self.notification_duration = None
+        self.scan_mode = None
+
+        if load:
+            self.load()
+
+        # parser = ConfigParser()
+        # #parser.optionxform = str  # make option names case sensitive
+        # found = parser.read(AppConfiguration.CONFIG_FNAME)
+        #
+        # if not found or AppConfiguration.section_names[0] not in parser.sections():
+        #     parser[AppConfiguration.section_names[0]] = AppConfiguration.defaults
+        # else:
+        #     values = dict(AppConfiguration.defaults)
+        #     values.update(parser[AppConfiguration.section_names[0]])
+        #     parser[AppConfiguration.section_names[0]] = values
+        #
+        # for section in parser.sections():
+        #     if section not in AppConfiguration.section_names:
+        #         parser.remove_section(section)
+        #
+        # os.makedirs(os.path.dirname(AppConfiguration.CONFIG_FNAME), exist_ok=True)
+        # with open(AppConfiguration.CONFIG_FNAME, mode="w") as f:
+        #     parser.write(f)
+        #
+        # for name in AppConfiguration.section_names:
+        #     self.__dict__.update(parser.items(name))
+
+    def load(self):
         parser = ConfigParser()
-        #parser.optionxform = str  # make option names case sensitive
         found = parser.read(AppConfiguration.CONFIG_FNAME)
 
-        if not found or AppConfiguration.section_names[0] not in parser.sections():
-            parser[AppConfiguration.section_names[0]] = AppConfiguration.defaults
-        else:
-            values = dict(AppConfiguration.defaults)
-            values.update(parser[AppConfiguration.section_names[0]])
-            parser[AppConfiguration.section_names[0]] = values
+        settings = {}
+        if found and self.section_name in parser.sections():
+            settings = parser[self.section_name]
 
-        for section in parser.sections():
-            if section not in AppConfiguration.section_names:
-                parser.remove_section(section)
+        try:
+            self.request_delay = float(settings['request_delay'])
+        except Exception:
+            self.request_delay = 1
+
+        try:
+            self.notify = str2bool(settings['notify'])
+        except Exception:
+            self.notify = True
+
+        try:
+            self.notify_copy_msg = str2bool(settings['notify_copy_msg'])
+        except Exception:
+            self.notify_copy_msg = True
+
+        try:
+            self.notification_duration = float(settings['notification_duration'])
+        except Exception:
+            self.notification_duration = 4
+
+        # TODO: validate
+        self.league = settings.get('league', 'Legacy')
+        self.scan_mode = settings.get('scan_mode', 'Latest')
+
+        self.save()
+
+    def update(self, cfg):
+        if not isinstance(cfg, AppConfiguration):
+            raise TypeError('cfg must be of type AppConfiguration')
+
+        self.league = cfg.league
+        self.notify = cfg.notify
+        self.notify_copy_msg = cfg.notify_copy_msg
+        self.notification_duration = cfg.notification_duration
+        self.request_delay = cfg.request_delay
+        self.scan_mode = cfg.scan_mode
+
+    def save(self):
+        parser = ConfigParser()
+        parser.add_section(self.section_name)
+
+        values = {
+            'league': self.league,
+            'request_delay': self.request_delay,
+            'notify': self.notify,
+            'notify_copy_msg': self.notify_copy_msg,
+            'notification_duration': self.notification_duration,
+            'scan_mode': self.scan_mode
+        }
+
+        parser[self.section_name] = values
 
         os.makedirs(os.path.dirname(AppConfiguration.CONFIG_FNAME), exist_ok=True)
         with open(AppConfiguration.CONFIG_FNAME, mode="w") as f:
             parser.write(f)
-
-        for name in AppConfiguration.section_names:
-            self.__dict__.update(parser.items(name))
-
 
 def getJsonFromURL(url, handle=None, max_attempts=1):
     if not handle:
@@ -197,6 +275,28 @@ def logexception():
 #     with open(ERROR_FNAME, mode="a") as f:
 #         f.write(msg + '\n')
 
+def get_verror_msg(verror, data=None):
+    pathMsg = ""
+    for i, p in enumerate(verror.path):
+        if isinstance(p, int):
+            if i == 0:
+                pathMsg += "filter #{}".format(p + 1)
+                if data is not None:
+                    filter_name = data[p].get("title", "")
+                    if filter_name:
+                        pathMsg += " ({})".format(filter_name)
+            elif verror.path[i - 1] == "mods":
+                pathMsg += " > mod #{}".format(p + 1)
+            elif verror.path[i - 1] == "values":
+                pathMsg += " > value #{}".format(p + 1)
+        else:
+            pathMsg += " > {}".format(p)
+
+    if pathMsg:
+        return "{} >>>> {}".format(verror.message, pathMsg)
+
+    return verror.message
+
 class NoIndent(object):
     def __init__(self, value):
         self.value = value
@@ -222,6 +322,9 @@ class NoIndentEncoder(json.JSONEncoder):
         for k, v in self._replacement_map.items():
             result = result.replace('"@@{}@@"'.format((k,)), v)
         return result
+
+def utc_to_local(utc_dt):
+    return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
 config = AppConfiguration()
 msgr = Messenger()

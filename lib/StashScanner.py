@@ -1,12 +1,15 @@
+import json
 import logging
 import os
 import pycurl
 import time
 import winsound
+from datetime import datetime
 from threading import Event
 
 import lib.UpdateThread as ut
-from lib.FilterManager import FilterManager
+from lib.CompiledFilter import CompiledFilter
+from lib.FilterManager import FilterManager, fm
 from lib.ItemHelper import *
 from lib.NotifyThread import NotifyThread
 from lib.StateManager import StateManager
@@ -18,11 +21,11 @@ POE_API = "http://api.pathofexile.com/public-stash-tabs?id={}"
 POE_BETA_API = "http://betaapi.pathofexile.com/api/public-stash-tabs?id={}"
 # STASH https://www.pathofexile.com/character-window/get-stash-items?league=Legacy&tabs=1&tabIndex=1&accountName=##
 
-ERROR_JSON_FNAME = "log\\error.json"
-ALERT_FNAME = "res\\alert.wav"
+JSON_ERROR_FNAME = "log\\error.json"
+ITEM_ERROR_FNAME = 'log\\item_error.json'
+
 
 class StashScanner:
-
     def __init__(self):
         self.notifier = NotifyThread()
         self.stateMgr = StateManager()
@@ -33,36 +36,25 @@ class StashScanner:
         self.league = None
 
     def handleResult(self, item, stash, fltr):
-        whisperMsg = get_whisper_msg(item, stash)
-        price = get_item_price_raw(item, stash)
-        if price is None:
-            price = ""
+        whisper_msg = item.get_whisper_msg(stash)
 
-        size = get_item_stacksize(item)
-        size_str = "" if size == 1 else size
+        if config.notify:
+            price = item.get_price_raw(get_stash_price_raw(stash)) or ''
+            size_str = "" if item.stacksize == 1 else item.stacksize
 
-        msg = "{} {}\n{}".format(size_str, get_item_name(item), price).strip()
-        self.notifier.send((fltr.getDisplayTitle(), msg, whisperMsg))
+            msg = "{} {}\n{}".format(size_str, item.name, price).strip()
+            self.notifier.send((fltr.getDisplayTitle(), msg, item.get_whisper_msg(stash)))
 
         try:
-            winsound.PlaySound(ALERT_FNAME, winsound.SND_ASYNC | winsound.SND_FILENAME)
-        except RuntimeError as e:
-            pass  # failed to play sound (probably because of excessive notifications)
-        except Exception as e:
-            msgr.send_msg("Error playing sound: {}".format(e), logging.ERROR)
-
-        # msgr.send_tmsg(get_item_info(item, stash))
-
-        try:
-            item_info = ItemInfo(item, stash, getBaseUrl(self.poe_api_url))
+            item_info = ItemResult(item, stash, getBaseUrl(self.poe_api_url), fltr)
         except (KeyError, IndexError) as e:
-            msgr.send_msg("Error parsing item info, item details will not be displayed", logging.WARN)
+            msgr.send_msg("Unexpected error while processing item {}. Item details will not be provided.".format(item.name), logging.WARN)
             item_info = None
             logexception()
-            with open('log\\item.error', mode='w') as f:
+            with open(ITEM_ERROR_FNAME, mode='w') as f:
                 json.dump(item, f, indent=4, separators=(',', ': '))
-            print(json.dumps(item, indent=4, separators=(',', ': ')))
-        msgr.send_msg(whisperMsg, tag=item_info)
+
+        msgr.send_msg(whisper_msg, tag=item_info)
 
     def stop(self):
         self._stop.set()
@@ -91,8 +83,8 @@ class StashScanner:
         os.makedirs('tmp', exist_ok=True)
         os.makedirs('log', exist_ok=True)
 
-        config.beta = config.league.lower().startswith('beta ')
-        if config.beta:
+        is_beta = config.league.lower().startswith('beta ')
+        if is_beta:
             self.poe_api_url = POE_BETA_API
             self.league = re.sub('beta ', '', config.league, flags=re.IGNORECASE)
             ninja_api_nextid_field = 'nextBetaChangeId'
@@ -101,44 +93,58 @@ class StashScanner:
             self.league = config.league
             ninja_api_nextid_field = 'nextChangeId'
 
-        cm.load()
-        if cm.initialized:
-            msgr.send_msg("Currency information loaded successfully.", logging.INFO)
+        # cm.load()
+        # if cm.initialized:
+        #     msgr.send_msg("Currency information loaded successfully.", logging.INFO)
 
-        try:
-            cm.update()
-            msgr.send_msg("Currency rates updated successfully.")
-        except AppException as e:
-            msgr.send_msg(e, logging.ERROR)
-            if cm.initialized:
-                msgr.send_msg('Using currency information from a local copy..', logging.WARN)
-
+        # assertions
         if not cm.initialized:
-            raise AppException("Failed to load currency information.")
+            raise AppException("Currency information must be initialized before starting a scan.")
+        if not fm.initialized:
+            raise AppException("Filters information must be initialized before starting a scan.")
 
-        fm = FilterManager()
-
-        filterFallback = False
-
-        try:
-            msgr.send_msg("Generating filters from API..")
-            fm.fetchFromAPI()
-        except AppException as e:
-            filterFallback = True
-            msgr.send_msg(e, logging.ERROR)
-
-        if filterFallback:
+        if cm.needUpdate:
             try:
-                msgr.send_msg("Loading generated filters from a local copy..", logging.WARN)
-                fm.loadAutoFilters()
+                cm.update()
+                msgr.send_msg("Currency rates updated successfully.")
             except AppException as e:
                 msgr.send_msg(e, logging.ERROR)
+                if cm.initialized:
+                    msgr.send_msg('Using currency information from a local copy..', logging.WARN)
 
-        msgr.send_msg("Loading user filters..")
-        fm.loadUserFilters()
+        # if not cm.initialized:
+        #     raise AppException("Failed to load currency information.")
 
-        msgr.send_msg("Compiling filters..")
-        fm.compileFilters()
+        # filterFallback = False
+
+        if fm.needUpdate:
+            try:
+                msgr.send_msg("Generating filters from API..")
+                fm.fetchFromAPI()
+            except AppException as e:
+                filterFallback = True
+                msgr.send_msg(e, logging.ERROR)
+
+        # if filterFallback:
+        #     try:
+        #         msgr.send_msg("Loading generated filters from a local copy..", logging.WARN)
+        #         fm.loadAutoFilters()
+        #     except AppException as e:
+        #         msgr.send_msg(e, logging.ERROR)
+
+        # msgr.send_msg("Loading user filters..")
+        # fm.loadUserFilters()
+        # msgr.send_msg("Validating filters..")
+        # verrors = fm.validateFilters()
+
+        # for e in verrors:
+        #     msgr.send_msg(e, logging.ERROR)
+        #
+        # if verrors:
+        #     raise AppException("Error while validating filters. Correct the errorrs using the editor and start again. Stopping..")
+
+        msgr.send_msg('Compiling filters..', logging.INFO)
+        fm.compileFilters(force_validation=True)
 
         filters = fm.getActiveFilters()
 
@@ -205,6 +211,12 @@ class StashScanner:
                 last_parse = time.time()
                 filters = fm.getActiveFilters()
 
+                if not len(filters):
+                    msgr.send_msg("No filters are active. Stopping..")
+                    # self._stop.set()
+                    # continue
+                    break
+
                 if lastId != curId:
                     data_count = parse_stashes_parallel(data, filters, self.league, self.stateMgr, self.handleResult, num_cores)
                 else:
@@ -235,12 +247,81 @@ class StashScanner:
             except Exception as e:
                 msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
                 logexception()
-                with open(ERROR_JSON_FNAME, "w") as f:
+                with open(JSON_ERROR_FNAME, "w") as f:
                     json.dump(data, f, indent=4, separators=(',', ': '))
 
                 c.close()
                 c = pycurl.Curl()
                 sleep_time = 10
 
+    @staticmethod
+    def clearLeagueData():
+        fm.clearCache()
+        cm.clearCache()
+        StateManager.clearCache()
 
 
+
+# used to expose specific item result info to ui
+# intentionally throws exceptions so we're forced to update enums when changes are made
+class ItemResult:
+    def __init__(self, item, stash, baseUrl, cf):
+        if not isinstance(item, Item):
+            raise TypeError('item is expected to be of type Item')
+        if not isinstance(cf, CompiledFilter):
+            raise TypeError('cf is expected to be of type CompiledFilter')
+
+        self.date = datetime.now()
+        self.id = item.id
+        self.ilvl = item.ilvl
+        self.price = item.price
+        self.name = item.name
+        self.type = ItemType(item.type)
+        self.identified = item.identified
+        self.corrupted = item.corrupted
+        self.mirrored = item.mirrored
+        self.stacksize = item.stacksize
+        self.note = item.note
+
+        self.mods = item.mods
+        self.implicit = item.implicit
+        self.explicit = item.explicit
+        self.craft = item.craft
+        self.enchant = item.enchant
+        self.utility = item.utility
+        self.prophecy = item.prophecy
+
+        self.quality = item.quality
+        # self.phys = item.phys
+        # self.elem = item.elem
+        self.aps = item.aps
+        self.dps = item.dps
+        self.pdps = item.pdps
+        self.edps = item.edps
+
+        self.armour = item.armour
+        self.evasion = item.evasion
+        self.es = item.es
+        # self.block = item.block
+        # self.crit = item.crit
+        self.level = item.level
+
+        self.sockets = [ItemSocket(socket) for socket in item.sockets]
+        self.links_string = item.get_item_links_string()
+        self.requirements = [ItemProperty(prop) for prop in item.requirements]
+        self.properties = [ItemProperty(prop) for prop in itertools.chain(item.properties, item.additional_properties)]
+        self.raw_price = item.get_price_raw(get_stash_price_raw(stash))
+        self.price_display = item.get_item_price_display()
+        self.whisper_msg = item.get_whisper_msg(stash)
+
+        self.x = item.x
+        self.y = item.y
+        self.w = item.w
+        self.h = item.h
+
+        self.icon = item.icon
+        if not isAbsoluteUrl(self.icon):
+            self.icon = urljoin(baseUrl, self.icon)
+
+        self.filter_name = cf.getDisplayTitle()
+        self.filter_totals = cf.getDisplayTotals(item)
