@@ -148,7 +148,7 @@ class AppConfiguration:
             self.notification_duration = 4
 
         # TODO: validate
-        self.league = settings.get('league', 'Legacy')
+        self.league = settings.get('league', 'Standard')
         self.scan_mode = settings.get('scan_mode', 'Latest')
 
         self.save()

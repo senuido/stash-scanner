@@ -348,6 +348,7 @@ class FilterEditor(Toplevel):
         self.treeIdToObj = {}  # Tree id to Obj
         self.compiling = BooleanVar(False)
         self.compiling.trace('w', lambda a, b, c: self._onCompilingChange())
+        self.reload_needed = False
 
         self.lst_categories = []
         self.lst_ids = []
@@ -763,6 +764,8 @@ class FilterEditor(Toplevel):
     # def onFiltersCompiled(self):
     #     self.compiling = False
     #     pass
+    def onFiltersUpdated(self):
+        self.reload_needed = True
 
     def onFilterIdChange(self, curr_iid=None, new_id=None):
         tree = self.tree
@@ -931,8 +934,16 @@ class FilterEditor(Toplevel):
         for fltr in filters:
             self.addFilterToTree(fltr, filters)
 
-    def tree_selected(self, event):
+    def tree_selected(self, event=None):
         selected = self.tree.selection()
+
+        if self.reload_needed:
+            self._update_categories()
+            self._update_ids()
+            self.fillTree()
+            self.reload_needed = False
+            selected = None
+
         if not selected:
             self.currFilter = None
             self.selected = None
@@ -947,7 +958,7 @@ class FilterEditor(Toplevel):
             self.setFormState(NORMAL)
             self.filter_form.form_update(self.currFilter.toDict())
 
-            if self.currFilter in self.fm.autoFilters:
+            if self.currFilter in self.fm.autoFilters or self.tree.tag_has('readonly', self.selected):
                 self.setFormState(DISABLED)
 
         self.validateForm()
@@ -1402,7 +1413,7 @@ class FilterEditor(Toplevel):
 
     def updateButtonState(self):
         if self.currFilter:
-            if self.currFilter in self.fm.autoFilters:
+            if self.currFilter in self.fm.autoFilters or (self.selected and self.tree.tag_has('readonly', self.selected)):
                 if self.compiling.get():
                     self.btn_copy.config(state=DISABLED)
                 else:

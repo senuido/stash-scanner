@@ -41,7 +41,6 @@ _URLS = [
     "http://poeninja.azureedge.net/api/Data/GetUniqueArmourOverview?league={}",
     "http://poeninja.azureedge.net/api/Data/GetUniqueAccessoryOverview?league={}",
     "http://poeninja.azureedge.net/api/Data/GetProphecyOverview?league={}",
-    # "http://poeninja.azureedge.net/api/Data/GetFragmentOverview?league={}",
     # "http://poeninja.azureedge.net/api/Data/GetMapOverview?league={}"
 ]
 

@@ -17,6 +17,8 @@ import PIL.Image
 import PIL.ImageTk
 import pycurl
 
+import multiprocessing
+
 from lib.ItemFilter import Filter
 from lib.CurrencyManager import CurrencyInfo, cm, CurrencyManager
 from lib.FilterManager import FiltersInfo, fm, FILTERS_CFG_FNAME, FilterManager
@@ -983,6 +985,8 @@ class AppGUI(Tk):
                         self.nb_cfg.loadCurrency()
                     elif isinstance(obj, FiltersInfo):
                         self.filters_info = obj
+                        if self.wnd_editor and self.wnd_editor.winfo_exists():
+                            self.wnd_editor.onFiltersUpdated()
                         self.nb_cfg.loadPrices()
                     elif isinstance(obj, ItemDisplay):
                         # selected = self.lst_msgs.curselection()
@@ -1326,6 +1330,7 @@ class ItemDisplay:
         self.image_overlay = PIL.ImageTk.PhotoImage(base_img)
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     app = AppGUI()
 
     if app.initialized:

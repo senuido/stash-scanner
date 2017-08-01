@@ -79,8 +79,6 @@ class ConfigEditor(Notebook):
 
 leagueOptions = ["Standard",
                  "Hardcore",
-                 "Legacy",
-                 "Hardcore Legacy",
                  "Beta Standard",
                  "Beta Hardcore"]
 

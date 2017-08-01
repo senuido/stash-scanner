@@ -19,7 +19,8 @@ INVALID_PRICE = "Invalid price {}"
 
 class CurrencyManager:
     CURRENCY_FNAME = "cfg\\currency.json"
-    CURRENCY_API = "http://poeninja.azureedge.net/api/Data/GetCurrencyOverview?league={}"
+    CURRENCY_API = ["http://poeninja.azureedge.net/api/Data/GetCurrencyOverview?league={}",
+                    "http://poeninja.azureedge.net/api/Data/GetFragmentOverview?league={}"]
     CURRENCY_WHISPER_BASE = {
         "Apprentice Cartographer's Sextant": 'apprentice sextant',
         "Armourer's Scrap": "armourer's",
@@ -140,16 +141,17 @@ class CurrencyManager:
 
         # print('updating currency..')
 
-        url = CurrencyManager.CURRENCY_API.format(config.league)
-
         try:
-            data = getJsonFromURL(url)
+            shorts = {}
+            rates = {}
+            for url in CurrencyManager.CURRENCY_API:
+                data = getJsonFromURL(url.format(config.league))
 
-            if data is None:
-                raise AppException("Currency update failed. bad response from server.")
+                if data is None:
+                    raise AppException("Currency update failed. bad response from server.")
 
-            shorts = {currency['name']: currency['shorthands'] for currency in data["currencyDetails"]}
-            rates = {currency['currencyTypeName']: float(currency['chaosEquivalent']) for currency in data["lines"]}
+                shorts.update({currency['name']: currency['shorthands'] for currency in data["currencyDetails"]})
+                rates.update({currency['currencyTypeName']: float(currency['chaosEquivalent']) for currency in data["lines"]})
 
             cur_shorts = dict(self.shorts)
             for curr in shorts:
