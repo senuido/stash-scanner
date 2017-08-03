@@ -1,21 +1,19 @@
 # Stash Scanner
+Stash scanner is a lightweight item searching tool for Path of Exile that works at the stash API level.  
+The project is open-source, written in Python, licensed under [GNU GPLv3](license).
 
-## What it does
-- Retrieves item prices and currency rates from poe.ninja's API regularly
-- Automatically generates filters according to retrieved item prices
-- Allows you to configure your own item filters in a similar fashion to poe.trade
-- Connects to PoE stash API and consumes item information
-- Parses items and attempts to find a match according to the configured filters
-- When a match is found, a notification message is shown and a whisper message is copied to the clipboard
-- Stores a minimal amount of information to prevent unnecessary notifications 
-
-## What is it good for
-- Snipe items you're interested in without having 20 tabs open on your browser, taxing your computer
-- Be independent from poe.trade. without it as the middleman, you can potentially get your results faster
-- Filter items based on API prices
-- Filter items with custom mods, complementing any missing/unsuitable mods
-- Easier filtering of crafting bases
-- Easier management of your filters
+## Features
+- Advanced searching capabilities, comparable to poe.trade
+- Supports currency conversion based on rates from poe.ninja
+- Automatically generates filters for valuable items based on prices from poe.ninja
+- Allows for currency rates and prices customization to better suit your needs
+- Allows you to configure your own item filters which can:
+  - have their price be based on API prices
+  - relate to other filters, allowing easier management
+  - Use custom mods to complement missing mods or allow for more advanced searches
+- Alerts when a match is found, a notification message is shown and a whisper message is copied to the clipboard
+- Stores a minimal amount of information to prevent unnecessary notifications (it does not index items).
+- Directly connects to the PoE stash API. without a middleman, you can get your results faster
 
 ## Installation
 - Install [Growl for Windows](http://www.growlforwindows.com/gfw/d.ashx?f=GrowlInstaller.exe), required for notifications
@@ -26,16 +24,13 @@
 ## Usage
 - Run Growl (for notifications)
 - Run `Stash Scanner.exe`
-- Configure league/preferences/filters. for reference see configuration guide
-- Click start to start scanning
+- Configure league/preferences/filters. for reference, see [configuration guide](/doc/configuration.md)
+- Click start to start scanning  
 
-### Things to note
-- You need to run PoE in windowed/windowed fullscreen mode in order for the notifications to show while in-game
-- Use Python 3.5.x if not using the bundle
+Note: you must run PoE in windowed or windowed fullscreen mode for the notifications to show while in-game
 
-### Installation (if running from sources)
-- Install [Python](https://www.python.org/ftp/python/3.5.2/python-3.5.2.exe)
-- Install [Growl for Windows](http://www.growlforwindows.com/gfw/d.ashx?f=GrowlInstaller.exe), required for notifications
-- Download Stash Scanner from the [releases page](../../releases/latest) and extract it to a folder
-- Run install.bat (run as administrator). This will install required dependencies & display style for growl
-- Open Growl and set *CompactDarkMinimal* as default under display styles
+## Support
+This project is being developed in my free time.  
+If this project is useful to you, please consider making a donation, even a small one!  
+
+[![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=YQ7F5L7AS2A5Y)
