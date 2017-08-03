@@ -3,7 +3,6 @@ import logging
 import os
 import pycurl
 import time
-import winsound
 from datetime import datetime
 from threading import Event
 
@@ -122,7 +121,7 @@ class StashScanner:
                 msgr.send_msg("Generating filters from API..")
                 fm.fetchFromAPI()
             except AppException as e:
-                filterFallback = True
+                # filterFallback = True
                 msgr.send_msg(e, logging.ERROR)
 
         # if filterFallback:

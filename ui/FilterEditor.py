@@ -34,19 +34,6 @@ boolOptions = [bo.name for bo in BoolOption]
 FGTypeOptions = [fg_type.name for fg_type in FilterGroupType]
 ModTypeOptions = [mod_type.name for mod_type in ModFilterType if mod_type != ModFilterType.Pseudo]
 
-# ItemTypeOptions = [
-#     'Normal',
-#     'Magic',
-#     'Rare',
-#     'Unique',
-#     'Gem',
-#     'Currency',
-#     'Divination Card',
-#     'Quest Item',
-#     'Prophecy',
-#     'Relic',
-# ]
-
 ItemTypeOptions = collections.OrderedDict([
     ('Normal', 'normal'),
     ('Magic', 'magic'),
@@ -59,20 +46,6 @@ ItemTypeOptions = collections.OrderedDict([
     ('Prophecy', 'prophecy'),
     ('Relic', 'relic')
 ])
-
-# ItemTypeOptions = []
-#     'Normal': 'normal',
-#     'Magic': 'magic',
-#     'Rare': 'rare',
-#     'Unique': 'unique',
-#     'Gem': 'gem',
-#     'Currency': 'currency',
-#     'Divination Card':
-#     'Quest Item': 'questitem'
-#     'Prophecy': 'prophecy',
-#     'Relic': 'relic'
-# ]
-
 
 class FilterGroupWidget(Frame):
     class ModFilterWidget:

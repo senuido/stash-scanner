@@ -1,6 +1,7 @@
 from lib.ModFilter import ModFilterType
 from lib.ModFilterGroup import get_mod_val
 from lib.Utility import RE_COMPILED_TYPE
+from lib.CurrencyManager import cm
 
 _FILTER_PRIO = {
     'base': 1,
@@ -48,8 +49,6 @@ _FILTER_PRIO = {
 
     'fgs': 5
 }
-from lib.CurrencyManager import cm
-
 
 
 class CompiledFilter:
@@ -61,10 +60,6 @@ class CompiledFilter:
         self.crit_ordered = sorted(comp.keys(), key=lambda k: _FILTER_PRIO[k])
 
     def __str__(self):
-        # return "{}: {}".format(self.title, json.dumps(self.criteria, sort_keys=True, cls=FilterEncoder))
-        # if 'price' in self.fltr.criteria:
-        # if self.fltr.category == 'user':
-        #     return "{}: {}".format(self.getDisplayTitle(), json.dumps(self.comp, sort_keys=True, cls=FilterEncoder))
         return self.getDisplayTitle()
 
     def getDisplayPrice(self):

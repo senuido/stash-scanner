@@ -1,9 +1,12 @@
 # Configuration Guide
+You can almost configure everything just using the bottom pane and the filter editor.
+Aside from a league change, any changes will saved once you choose save/apply. They will immediately take effect on any active scan, so don't worry worry about restarting it. 
+
 ## General
 - **League:** the league you're interested in
 - **Request delay:** minimum time delay between requests to PoE stash API, tweak this if you're getting throttled
 - **Scan mode**
-  - Latest: start scanning from the latest data
+  - Latest: start scanning from the latest data. Use this unless you're interested in historical data.
   - Continue: resume scanning from the last stopping point. if there is none, starts from the latest data
 - **Growl notifications:** turn on/off notifications
 - **Notification duration**
@@ -33,6 +36,9 @@ Here you can view and tweak currency rates to use:
   - **Rate:** currency rate as retrieved from API
   - **Override:** override to modify the rate, leave empty 
   - **Effective rate:** actual currency chaos rate (rate after override is applied)
+
+Note the API might not provide a rate for extremely rare currency such as mirrors/eternal orbs. This can create false alerts because their rate will default to 0.
+To avoid that, provide an estimated price using an override, such as `50 ex` or whatever you see fit.
 
 ## Filters
 Item filters are configured using the filter editor. for specific information on filters, view the filter guide.

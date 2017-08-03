@@ -10,15 +10,15 @@
 
 ## What is it good for
 - Snipe items you're interested in without having 20 tabs open on your browser, taxing your computer
-- Be independant from poe.trade. without it as the middleman, you can potentially get your results faster
-- Filter items based on API prices, less grunt work
+- Be independent from poe.trade. without it as the middleman, you can potentially get your results faster
+- Filter items based on API prices
 - Filter items with custom mods, complementing any missing/unsuitable mods
 - Easier filtering of crafting bases
 - Easier management of your filters
 
 ## Installation
 - Install [Growl for Windows](http://www.growlforwindows.com/gfw/d.ashx?f=GrowlInstaller.exe), required for notifications
-- Download the bundle and extract it to a folder
+- [Download the bundle ](../../releases/latest) and extract it to a folder
 - Run install_display_style.bat to install the display style for growl
 - Open Growl and set CompactDarkMinimal as the default under display styles
 
@@ -27,6 +27,7 @@
 - Run `Stash Scanner.exe`
 - Configure league/preferences/filters. for reference see configuration guide
 - Hit start
+- Make sure PoE is running in windowed/windowed fullscreen mode if you want the notifications to pop while in-game
 
 ### Things to note
 - You need to run PoE in windowed/windowed fullscreen mode for the notifications to show

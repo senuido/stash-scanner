@@ -70,67 +70,6 @@ def get_stash_price_raw(stash):
         return stash['stash']
     return None
 
-# res_mods = {
-#         re.compile('([\-+][0-9]+)% to Fire and Cold Resistances$'): ('_fres', '_cres'),
-#         re.compile('([\-+][0-9]+)% to Fire and Lightning Resistances$'): ('_fres', '_lres'),
-#         re.compile('([\-+][0-9]+)% to Cold and Lightning Resistances$'): ('_cres', '_lres'),
-#         re.compile('([\-+][0-9]+)% to Fire Resistance$'): ('_fres',),
-#         re.compile('([\-+][0-9]+)% to Cold Resistance$'): ('_cres',),
-#         re.compile('([\-+][0-9]+)% to Lightning Resistance$'): ('_lres',),
-#         re.compile('([\-+][0-9]+)% to Chaos Resistance$'): ('_chres',),
-#         re.compile('([\-+][0-9]+)% to all Elemental Resistances$'): ('_fres', '_cres', '_lres')
-#     }
-
-# def get_item_buyout(item, stash):
-#     price = get_item_price_raw(item, stash)
-#     if price is not None:
-#         match = _BO_PRICE_REGEX.match(price.lower())
-#
-#         if match is not None:
-#             return float(match.group(2)) > 0
-#     return False
-
-# def get_item_price_raw_old(item, stash):
-#     price = None
-#     if "note" in item:
-#         price = item["note"]
-#     elif stash["stash"].startswith("~b/o ") or stash["stash"].startswith("~price "):
-#     #elif PRICE_REGEX.match(stash["stash"]):
-#         price = stash["stash"]
-#
-#     return price
-
-# def get_item_price_old(item, stash):
-#     # Returns tuple (amount, currency)
-#
-#     price = get_item_price_raw(item, stash)
-#     if price is not None:
-#         match = _BO_PRICE_REGEX.match(price.lower())
-#
-#         if match is not None:
-#             return match.group(2, 3)
-#
-#     return None
-
-
-
-# def get_item_info(item, stash):
-#     template = "{}{}: ilvl: {}, Links: {}, Implicit: {}, Explicit: {}, Price: {}, Stack: {}, Account: {}, " \
-#                "Sockets: {}"
-#
-#     price = get_item_price_raw(item, stash)
-#     if price is None:
-#         price = "n/a"
-#
-#     return template.format("!!! CORRUPTED !!! " if item["corrupted"] else "",
-#                            get_item_name(item), item["ilvl"],
-#                            get_item_links(item), item.get("implicitMods", []), item.get("explicitMods", []),
-#                            price, get_item_stacksize(item), stash["accountName"], get_item_sockets(item))
-
-
-
-
-
 # def parse_stashes(data, filters, league, stateMgr, resultHandler):
 #     league_tabs = 0
 #     item_count = 0
@@ -186,44 +125,6 @@ def parse_stash(stash, filters):
                 results.append((curItem, stash, fltr))
                 break
     return results
-
-# def lower_json(x):
-#     if isinstance(x, list):
-#         return [lower_json(v) for v in x]
-#     if isinstance(x, dict):
-#         d = {}
-#         for k, v in x.items():
-#             if k.lower() in ("title"):
-#                 d[k.lower()] = v
-#             else:
-#                 d[k.lower()] = lower_json(v)
-#         return d
-#         # return {k.lower(): lower_keys(v) for k, v in x.items()}
-#     if isinstance(x, str):
-#         return x.lower()
-#     return x
-
-# def get_item_life(mods):
-#     life = 0
-#     for mod in mods:
-#         match = life_expr.match(mod)
-#         if match:
-#             life += float(match.group(1))
-#
-#     return life + get_item_strength(mods) / 2
-#
-#
-# def get_item_strength(mods):
-#     str = 0
-#     for mod in mods:
-#         for expr in str_mods:
-#             match = expr.match(mod)
-#             if match:
-#                 str += float(match.group(1))
-#                 break
-#
-#     return str
-
 
 class Item:
     __slots__ = ('_item', 'c_name', 'base', 'ilvl', 'links_count', 'corrupted', 'mirrored', 'identified', 'stacksize',
@@ -529,24 +430,6 @@ class Item:
     #     if vals:
     #         vals = [val[0] for val in vals]
     #     return vals
-
-    # def _fill_res(self):
-    #     self._cres = 0
-    #     self._fres = 0
-    #     self._lres = 0
-    #     self._chres = 0
-    #
-    #     for mod in self.mods:
-    #         for expr in self.res_mods:
-    #             match = expr.match(mod)
-    #             if match:
-    #                 val = float(match.group(1))
-    #                 for res in self.res_mods[expr]:
-    #                     self.__setattr__(res, self.__getattribute__(res) + val)
-    #                 break
-    #
-    #     self._ele_res = self._fres + self._cres + self._lres
-    #     self._total_res = self._ele_res + self._chres
 
     @staticmethod
     def get_mod_total(expr, mods, skip_vals=False):
