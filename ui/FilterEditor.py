@@ -1,6 +1,7 @@
 import collections
 import copy
 import functools
+# import pprint
 import threading
 import tkinter.font as tkfont
 from enum import Enum
@@ -31,7 +32,7 @@ class BoolOption(Enum):
 READONLY = 'readonly'
 boolOptions = [bo.name for bo in BoolOption]
 FGTypeOptions = [fg_type.name for fg_type in FilterGroupType]
-ModTypeOptions = [mod_type.name for mod_type in ModFilterType]
+ModTypeOptions = [mod_type.name for mod_type in ModFilterType if mod_type != ModFilterType.Pseudo]
 
 # ItemTypeOptions = [
 #     'Normal',
@@ -758,12 +759,6 @@ class FilterEditor(Toplevel):
         self.fm.saveUserFilters()
         self.compiling.set(False)
 
-    # def onFiltersUpdated(self):
-    #     pass
-    #
-    # def onFiltersCompiled(self):
-    #     self.compiling = False
-    #     pass
     def onFiltersUpdated(self):
         self.reload_needed = True
 

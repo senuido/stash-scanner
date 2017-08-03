@@ -51,7 +51,7 @@ class CurrencyManager:
         "Eternal Orb": 'eternal',
         "Mirror of Kalandra": 'mirror'
     }
-    UPDATE_INTERVAL = 10  # minutes
+    UPDATE_INTERVAL = 20  # minutes
 
     def __init__(self):
         self.init()

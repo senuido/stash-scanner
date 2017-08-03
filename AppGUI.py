@@ -106,7 +106,7 @@ class AppGUI(Tk):
 
     VERSION_NUMBER = 'v1.0'
     LATEST_URL = 'https://github.com/senuido/stash-scanner/raw/master/latest'
-    RELEASES_URL = 'https://github.com/senuido/stash-scanner/releases'
+    RELEASES_URL = 'https://github.com/senuido/stash-scanner/releases/latest'
     VERSION_TEXT = 'Stash Scanner {}'.format(VERSION_NUMBER)
 
     FONTS = ['Segoe UI', 'TkTextFont', 'Arial']#"sans-serif" #"Helvetica",Helvetica,Arial,sans-serif;
@@ -984,10 +984,11 @@ class AppGUI(Tk):
                         self.currency_info = obj
                         self.nb_cfg.loadCurrency()
                     elif isinstance(obj, FiltersInfo):
+                        if self.filters_info.last_update != obj.last_update:
+                            if self.wnd_editor and self.wnd_editor.winfo_exists():
+                                self.wnd_editor.onFiltersUpdated()
+                            self.nb_cfg.loadPrices()
                         self.filters_info = obj
-                        if self.wnd_editor and self.wnd_editor.winfo_exists():
-                            self.wnd_editor.onFiltersUpdated()
-                        self.nb_cfg.loadPrices()
                     elif isinstance(obj, ItemDisplay):
                         # selected = self.lst_msgs.curselection()
                         # if selected:
@@ -1219,7 +1220,7 @@ class ItemDisplay:
     def downloadImages(self):
         if self.requested or self.image:
             return
-
+        self.requested = True
         if self.item.icon in self.CACHE:
             self.onDownloadComplete(self.item.icon, self.CACHE[self.item.icon])
         else:

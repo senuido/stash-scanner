@@ -174,7 +174,7 @@ class StashScanner:
 
         stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
 
-        updater = ut.UpdateThread(self._stop, fm, 5 * 60)
+        updater = ut.UpdateThread(self._stop, fm, 20 * 60)
         updater.start()
         self.notifier.start()
 

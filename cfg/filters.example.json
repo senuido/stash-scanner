@@ -1,0 +1,156 @@
+{
+    "last_update": "2017-08-02T23:27:57.234381",
+    "filters": [
+        {
+            "title": "Good Vinktar",
+            "baseid": "",
+            "criteria": {
+                "type": [
+                    "unique"
+                ],
+                "price_max": "100 chao",
+                "buyout": true,
+                "base": "topaz flask",
+                "fgs": [
+                    {
+                        "type": "all",
+                        "mfs": [
+                            {
+                                "type": "explicit",
+                                "min": 45.0,
+                                "max": null,
+                                "expr": "Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect$"
+                            },
+                            {
+                                "type": "explicit",
+                                "min": null,
+                                "max": 85.0,
+                                "expr": "([0-9]+)% increased Charges used$"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "category": "user",
+            "description": "example - finding vinktar with high rolls",
+            "enabled": false,
+            "id": ""
+        },
+        {
+            "title": "Crystal Belt i84",
+            "baseid": "",
+            "criteria": {
+                "price_max": "4 exa",
+                "modifiable": true,
+                "ilvl_min": 84.0,
+                "buyout": true,
+                "base": "crystal belt",
+                "type": [
+                    "normal",
+                    "magic",
+                    "rare"
+                ]
+            },
+            "category": "user",
+            "description": "example - finding craftable crystal belt with i84+",
+            "enabled": false,
+            "id": "crystal-i84"
+        },
+        {
+            "title": "Corrupted/Mirrored Crystal Belt i84",
+            "baseid": "crystal-i84",
+            "criteria": {
+                "price_max": "/ 5",
+                "modifiable": false
+            },
+            "category": "user",
+            "description": "example - using base ID and relative prices",
+            "enabled": false,
+            "id": ""
+        },
+        {
+            "title": "Unique Crystal Belt i84",
+            "baseid": "crystal-i84",
+            "criteria": {
+                "type": [
+                    "unique"
+                ],
+                "price_max": "/20"
+            },
+            "category": "user",
+            "description": "example - using base ID and relative prices",
+            "enabled": false,
+            "id": ""
+        },
+        {
+            "title": "Pure Signal Fire",
+            "baseid": "_the_signal_fire",
+            "criteria": {
+                "corrupted": false,
+                "ilvl_max": 49.0
+            },
+            "category": "user",
+            "description": "example - using API price for your filters",
+            "enabled": false,
+            "id": ""
+        },
+        {
+            "title": "Opal Ring i84",
+            "baseid": "",
+            "criteria": {
+                "price_max": "2 ex",
+                "modifiable": true,
+                "ilvl_min": 84.0,
+                "buyout": true,
+                "base": "opal ring",
+                "type": [
+                    "normal",
+                    "magic",
+                    "rare"
+                ]
+            },
+            "category": "user",
+            "description": "example - finding craftable opal rings with i84+",
+            "enabled": false,
+            "id": "opal-i84"
+        },
+        {
+            "title": "Corrupted/Mirrored Opal Ring i84",
+            "baseid": "opal-i84",
+            "criteria": {
+                "price_max": "/ 5",
+                "modifiable": false
+            },
+            "category": "user",
+            "description": "example - using relative prices",
+            "enabled": false,
+            "id": ""
+        },
+        {
+            "title": "Lion's Roar 35%",
+            "baseid": "",
+            "criteria": {
+                "name": [
+                    "Lion's Roar"
+                ],
+                "fgs": [
+                    {
+                        "type": "all",
+                        "mfs": [
+                            {
+                                "type": "explicit",
+                                "min": 35.0,
+                                "max": null,
+                                "expr": "([0-9]+)% more Melee Physical Damage during effect$"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "category": "user",
+            "description": "example - using custom mods to complement missing mods",
+            "enabled": false,
+            "id": ""
+        }
+    ]
+}

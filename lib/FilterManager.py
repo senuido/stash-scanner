@@ -28,6 +28,7 @@ FM_INVALID_PRICE_THRESHOLD = "Invalid price threshold {}"
 
 _AUTO_FILTERS_FNAME = "tmp\\filters.auto.json"
 _USER_FILTERS_FNAME = "cfg\\filters.json"
+_USER_DEFAULT_FILTERS_FNAME = "cfg\\filters.example.json"
 FILTERS_CFG_FNAME = "cfg\\filters.config.json"
 FILTERS_FILE_SCHEMA_FNAME = "res\\filters_file.schema.json"
 
@@ -66,10 +67,14 @@ _VARIANTS = {
 
 
 class FilterManager:
-    filter_file_lock = {_USER_FILTERS_FNAME: threading.Lock(),
+    filter_file_lock = {_USER_DEFAULT_FILTERS_FNAME: threading.Lock(),
+                        _USER_FILTERS_FNAME: threading.Lock(),
                         _AUTO_FILTERS_FNAME: threading.Lock()}
     config_file_lock = threading.Lock()
-    UPDATE_INTERVAL = 10  # minutes
+    UPDATE_INTERVAL = 20  # minutes
+    DEFAULT_PRICE_THRESHOLD = '1 exalted'
+    DEFAULT_PRICE_OVERRIDE = '* 1'
+    DEFAULT_FPRICE_OVERRIDE = '* 0.7'
 
     def __init__(self):
         self.init()
@@ -81,9 +86,9 @@ class FilterManager:
         self.activeFilters = []
 
         self.disabled_categories = []
-        self.price_threshold = '1 exalted'
-        self.default_price_override = "* 1"
-        self.default_fprice_override = "* 0.8"
+        self.price_threshold = self.DEFAULT_PRICE_THRESHOLD
+        self.default_price_override = self.DEFAULT_PRICE_OVERRIDE
+        self.default_fprice_override = self.DEFAULT_FPRICE_OVERRIDE
         self.price_overrides = {}
         self.filter_price_overrides = {}
         self.filter_state_overrides = {}
@@ -108,9 +113,9 @@ class FilterManager:
                 data = {}
 
             self.disabled_categories = data.get('disabled_categories', [])
-            self.price_threshold = data.get('price_threshold', '1 exalted')
-            self.default_price_override = data.get('default_price_override', '* 1')
-            self.default_fprice_override = data.get('default_fprice_override', '* 0.8')
+            self.price_threshold = data.get('price_threshold', self.DEFAULT_PRICE_THRESHOLD)
+            self.default_price_override = data.get('default_price_override', self.DEFAULT_PRICE_THRESHOLD)
+            self.default_fprice_override = data.get('default_fprice_override', self.DEFAULT_FPRICE_OVERRIDE)
             self.price_overrides = data.get('price_overrides', {})
             self.filter_price_overrides = data.get('filter_price_overrides', {})
             self.filter_state_overrides = data.get('filter_state_overrides', {})
@@ -217,11 +222,17 @@ class FilterManager:
             logexception()
             raise AppException("Filters update failed. Unexpected error: {}".format(e))
 
+    def _loadDefaultFilters(self, validate=True):
+        try:
+            self.userFilters, last_update = FilterManager.loadFiltersFromFile(_USER_DEFAULT_FILTERS_FNAME, validate)
+        except Exception:
+            self.userFilters = []
+
     def loadUserFilters(self, validate=True):
         try:
             self.userFilters, last_update = FilterManager.loadFiltersFromFile(_USER_FILTERS_FNAME, validate)
         except FileNotFoundError:
-            self.userFilters = []
+            self._loadDefaultFilters()
             self.saveUserFilters()
         except AppException:
             raise

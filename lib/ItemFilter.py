@@ -36,11 +36,12 @@ class Filter:
 
     schema_validator = None
 
-    def __init__(self, title, criteria=None, enabled=True, category='', id='', base_id=''):
+    def __init__(self, title, criteria=None, enabled=True, category='', id='', base_id='', desc=''):
         self.title = title
         self.criteria = criteria if criteria is not None else {}
         self.enabled = enabled
         self.category = category
+        self.description = desc
 
         self.id = id
         self.baseId = base_id
@@ -134,6 +135,7 @@ class Filter:
                 'category': self.category,
                 'id': self.id,
                 'baseid': self.baseId,
+                'description': self.description,
                 'criteria': self.criteria}
 
     @classmethod
@@ -144,7 +146,8 @@ class Filter:
             data.get('enabled', True),
             data.get('category', 'user'),
             data.get('id', ''),
-            data.get('baseid', ''))
+            data.get('baseid', ''),
+            data.get('description', ''))
 
 class FilterEncoder(JSONEncoder):
     def default(self, o):

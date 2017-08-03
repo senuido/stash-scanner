@@ -4,6 +4,7 @@ from lib.Utility import RE_COMPILED_TYPE
 
 _FILTER_PRIO = {
     'base': 1,
+    'name': 1,
     'price_min': 1,
     'price_max': 1,
     'ilvl_min': 1,
@@ -44,7 +45,6 @@ _FILTER_PRIO = {
 
     'links_min': 2,
     'links_max': 2,
-    'name': 2,
 
     'fgs': 5
 }
