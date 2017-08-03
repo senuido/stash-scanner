@@ -114,7 +114,7 @@ class FilterManager:
 
             self.disabled_categories = data.get('disabled_categories', [])
             self.price_threshold = data.get('price_threshold', self.DEFAULT_PRICE_THRESHOLD)
-            self.default_price_override = data.get('default_price_override', self.DEFAULT_PRICE_THRESHOLD)
+            self.default_price_override = data.get('default_price_override', self.DEFAULT_PRICE_OVERRIDE)
             self.default_fprice_override = data.get('default_fprice_override', self.DEFAULT_FPRICE_OVERRIDE)
             self.price_overrides = data.get('price_overrides', {})
             self.filter_price_overrides = data.get('filter_price_overrides', {})
