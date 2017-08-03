@@ -1,6 +1,7 @@
 # Configuration Guide
-You can almost configure everything just using the bottom pane and the filter editor.
-Aside from a league change, any changes will saved once you choose save/apply. They will immediately take effect on any active scan, so don't worry worry about restarting it. 
+You can configure everything just using the bottom pane in the main window and the filter editor.  
+It is important you take the time to understand and configure the tool properly if you want to get the most out of it.
+Make sure to Apply/Save once you're done making changes. If the scanner is active, changes will be applied to it, so don't worry about restarting it. 
 
 ## General
 - **League:** the league you're interested in
@@ -19,10 +20,11 @@ For every item retrieved from the API, a filter is generated. To allow you to tw
 Overrides follow the same format as prices. For example, to change an item's price to be 20 chaos, just put in `20 chaos`.  
 Same as prices for filters, overrides can be relative to the original price. For example: `+1 ex` or `* 3` or `/ 2`
 
-  - **Item price threshold:** think of this as the minimum value of items you're interested in. generated filters for items with effective price below this threshold will be disabled.
+  - **Item price threshold:** think of this as the minimum value of items you're interested in. generated filters for items with effective price below this threshold will be disabled.  
+    By settings this to a high enough value, you can disable all generated filters if you wish.
   - **Default price override:** default item price override. if none is specified, this is used.
   - **Default filter override:** default filter price override. if none is specified, this is used. By setting this to `* 0.8` you're telling the app you want to be notified when an item is posted at 80% of its API price.
-  - Columns  
+  - Table  
     - **Item Price:** item price as it was retrieved from the API
     - **Override:** override for item price.
     - **Filter Price:** the effective item price (which means item price after override is applied).
@@ -41,7 +43,7 @@ Note the API might not provide a rate for extremely rare currency such as mirror
 To avoid that, provide an estimated price using an override, such as `50 ex` or whatever you see fit.
 
 ## Filters
-Item filters are configured using the filter editor. for specific information on filters, view the filter guide.
+Item filters are configured using the filter editor. for specific information on filters, view the [filter guide](filter.md).
 
 ## File structure
 Under `cfg` directory:
