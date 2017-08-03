@@ -1,6 +1,6 @@
 # Configuration Guide
-You can configure everything just using the bottom pane in the main window and the filter editor.  
-It is important you take the time to understand and configure the tool properly if you want to get the most out of it.
+You can configure almost everything just using the bottom pane in the main window and the filter editor.  
+It is important you take the time to understand and configure the tool properly if you want to get the most out of it.  
 Make sure to Apply/Save once you're done making changes. If the scanner is active, changes will be applied to it, so don't worry about restarting it. 
 
 ## General
