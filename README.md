@@ -3,10 +3,11 @@
 ## What it does
 - Retrieves item prices and currency rates from poe.ninja's API regularly
 - Automatically generates filters according to retrieved item prices
-- Allows you to configure your own item filters in a fashion similiar to poe.trade
+- Allows you to configure your own item filters in a similar fashion to poe.trade
 - Connects to PoE stash API and consumes item information
 - Parses items and attempts to find a match according to the configured filters
 - When a match is found, a notification message is shown and a whisper message is copied to the clipboard
+- Stores a minimal amount of information to prevent unnecessary notifications 
 
 ## What is it good for
 - Snipe items you're interested in without having 20 tabs open on your browser, taxing your computer
@@ -18,19 +19,18 @@
 
 ## Installation
 - Install [Growl for Windows](http://www.growlforwindows.com/gfw/d.ashx?f=GrowlInstaller.exe), required for notifications
-- [Download the bundle ](../../releases/latest) and extract it to a folder
-- Run install_display_style.bat to install the display style for growl
-- Open Growl and set CompactDarkMinimal as the default under display styles
+- [Download the bundle](../../releases/latest) and extract it to a folder
+- Run *install_display_style.bat* to install the display style for Growl
+- Open Growl and set *CompactDarkMinimal* as the default under display styles
 
 ## Usage
 - Run Growl (for notifications)
 - Run `Stash Scanner.exe`
 - Configure league/preferences/filters. for reference see configuration guide
-- Hit start
-- Make sure PoE is running in windowed/windowed fullscreen mode if you want the notifications to pop while in-game
+- Click start to start scanning
 
 ### Things to note
-- You need to run PoE in windowed/windowed fullscreen mode for the notifications to show
+- You need to run PoE in windowed/windowed fullscreen mode in order for the notifications to show while in-game
 - Use Python 3.5.x if not using the bundle
 
 ### Installation (if running from sources)
@@ -38,4 +38,4 @@
 - Install [Growl for Windows](http://www.growlforwindows.com/gfw/d.ashx?f=GrowlInstaller.exe), required for notifications
 - Download Stash Scanner from the [releases page](../../releases/latest) and extract it to a folder
 - Run install.bat (run as administrator). This will install required dependencies & display style for growl
-- Open Growl and set CompactDarkMinimal as default under display styles
+- Open Growl and set *CompactDarkMinimal* as default under display styles
