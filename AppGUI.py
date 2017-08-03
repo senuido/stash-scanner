@@ -105,7 +105,7 @@ class AppGUI(Tk):
     }
 
     VERSION_NUMBER = 'v1.0'
-    LATEST_URL = 'https://github.com/senuido/stash-scanner/raw/master/latest'
+    VERSION_URL = 'https://github.com/senuido/stash-scanner/raw/master/files/latest'
     RELEASES_URL = 'https://github.com/senuido/stash-scanner/releases/latest'
     VERSION_TEXT = 'Stash Scanner {}'.format(VERSION_NUMBER)
 
@@ -170,7 +170,7 @@ class AppGUI(Tk):
             c.setopt(pycurl.SSL_VERIFYPEER, 0)
             c.setopt(pycurl.SSL_VERIFYHOST, 0)
             c.setopt(pycurl.FOLLOWLOCATION, 1)
-            data = getJsonFromURL(self.LATEST_URL, handle=c, max_attempts=3)
+            data = getJsonFromURL(self.VERSION_URL, handle=c, max_attempts=3)
             if data:
                 msgr.send_object(VersionInfo(data))
         # except pycurl.error as e:
