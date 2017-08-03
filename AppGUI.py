@@ -987,8 +987,8 @@ class AppGUI(Tk):
                         if self.filters_info.last_update != obj.last_update:
                             if self.wnd_editor and self.wnd_editor.winfo_exists():
                                 self.wnd_editor.onFiltersUpdated()
-                            self.nb_cfg.loadPrices()
                         self.filters_info = obj
+                        self.nb_cfg.loadPrices()
                     elif isinstance(obj, ItemDisplay):
                         # selected = self.lst_msgs.curselection()
                         # if selected:
