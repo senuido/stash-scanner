@@ -2,8 +2,7 @@
 Stash scanner is a lightweight item searching tool for Path of Exile that works at the stash API level.  
 The project is open-source, written in Python, licensed under [GNU GPLv3](license).
 
-<img src=https://github.com/senuido/stash-scanner/raw/master/files/images/stash_scanner.jpg width=300 height=150>
-<img src=https://github.com/senuido/stash-scanner/raw/master/files/images/filter_editor.jpg width=300 height=150>
+<img src=https://github.com/senuido/stash-scanner/raw/master/files/images/stash_scanner.jpg width=400 height=200> <img src=https://github.com/senuido/stash-scanner/raw/master/files/images/filter_editor.jpg width=400 height=200>
 
 ## Features
 - Advanced searching capabilities, comparable to poe.trade
