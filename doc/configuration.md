@@ -48,7 +48,7 @@ Item filters are configured using the filter editor. for specific information on
 #### Disabling generated filters
 * **Specific:** you can control individual filters if you use set their state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
 
-* **By Price:** Generally *generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*.
+* **By price:** Generally *generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*.
 
 * **By category:** You can disable filters by categories but it can't be done using the UI yet.  
 If you want to do that you need to open up *filters.config.json* and fill *disabled_categories*. Make sure the application is closed before you do. Example how this looks like:
