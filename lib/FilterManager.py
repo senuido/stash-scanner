@@ -71,7 +71,7 @@ class FilterManager:
                         _USER_FILTERS_FNAME: threading.Lock(),
                         _AUTO_FILTERS_FNAME: threading.Lock()}
     config_file_lock = threading.Lock()
-    UPDATE_INTERVAL = 20  # minutes
+    UPDATE_INTERVAL = 10  # minutes
     DEFAULT_PRICE_THRESHOLD = '10 chaos'
     DEFAULT_PRICE_OVERRIDE = '* 1'
     DEFAULT_FPRICE_OVERRIDE = '* 0.7'
