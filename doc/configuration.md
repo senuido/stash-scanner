@@ -46,13 +46,12 @@ To avoid that, provide an estimated price using an override, such as `50 ex` or 
 Item filters are configured using the filter editor. for specific information on filters, view the [filter guide](filter.md).
 
 #### Disabling generated filters
-* **State override:** you can control individual filters if you use set filter state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
+* **Specific:** you can control individual filters if you use set their state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
 
-* **Item price threshold:** *Generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*.
+* **By Price:** Generally *generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*.
 
-* **Categories:** You can disable filters by categories but it can't be done using the UI yet.  
-If you want to do that you need to open up *filters.config.json* and fill *disabled_categories*.  
-Example how this looks like:
+* **By category:** You can disable filters by categories but it can't be done using the UI yet.  
+If you want to do that you need to open up *filters.config.json* and fill *disabled_categories*. Make sure the application is closed before you do. Example how this looks like:
 ```
 {
     "default_fprice_override": "* 0.7",
