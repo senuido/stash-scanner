@@ -1,7 +1,12 @@
 # Configuration Guide
-You can configure almost everything just using the bottom pane in the main window and the filter editor.  
-It is important you take the time to understand and configure the tool properly if you want to get the most out of it.  
-Make sure to Apply/Save once you're done making changes. If the scanner is active, changes will be applied to it, so don't worry about restarting it. 
+You can configure almost everything using the UI. It is important you take the time to understand and configure the tool properly if you want to get the most out of it.  
+Make sure to apply/save once you're done making changes. If the scanner is active, changes will be applied to it, so don't worry about restarting it. 
+
+## Filters
+There are two types of filters:
+- **Custom:** user filters, configured using the filter editor. for reference, see [filter guide](filter.md).
+- **Generated:** these are generated automatically, for every item retrieved from the API a filter is generated.  
+ They are read-only and cannot be removed. You can though, adjust their prices and disable/enable them. This is done in the *Prices* tab.
 
 ## General
 - **League:** the league you're interested in
@@ -14,22 +19,20 @@ Make sure to Apply/Save once you're done making changes. If the scanner is activ
 - **Copy message to clipboard**
 
 ## Prices
-Here you can view the item prices retrieved from the API.
-
-For every item retrieved from the API, a filter is generated. To allow you to tweak these prices, you can use _overrides_.  
+Here you can view and customize item prices and generated filters. Customization is done using *overrides*.  
 Overrides follow the same format as prices. For example, to change an item's price to be 20 chaos, just put in `20 chaos`.  
-Same as prices for filters, overrides can be relative to the original price. For example: `+1 ex` or `* 3` or `/ 2`
+overrides can be relative to the original price. Examples: `+1 ex`, `* 3`, `/ 2`, `-10 chaos`
 
   - **Item price threshold:** think of this as the minimum value of items you're interested in. *Generated* filters for items with effective price below this threshold will be disabled.
   - **Default price override:** default item price override. if none is specified, this is used.
   - **Default filter override:** default filter price override. if none is specified, this is used. By setting this to `* 0.8` you're telling the app you want to be notified when an item is posted at 80% of its API price.
   - Table  
     - **Item Price:** item price as it was retrieved from the API
-    - **Override:** override for item price.
+    - **Override:** use this to adjust item prices
     - **Filter Price:** the effective item price (which means item price after override is applied).
-    - **Filter Override:** override for generated filter price, if none is specified the default override is used.
+    - **Filter Override:** use this to adjust the generated filter price, if none is specified the default filter price override is used.
     - **Effective Filter Price:** filter price after override is applied
-    - **Filter State Override:** if a specific filter is disabled because it is under the threshold and you want to enable it anyway, use this override.
+    - **Filter State Override:** use this override if a specific filter is disabled because it is under the threshold and you want to enable it anyway.  
     same goes for specific filters you want disabled even though they're above the threshold
 
 ## Currency
@@ -40,19 +43,15 @@ Here you can view and tweak currency rates to use:
 
 Note the API might not provide a rate for extremely rare currency such as mirrors/eternal orbs. This can create false alerts because their rate will default to 0.
 To avoid that, provide an estimated price using an override, such as `50 ex` or whatever you see fit.
+ 
 
-## Filters
-#### Configuration
-Custom filters are configured using the filter editor. for specific information on filters, view the [filter guide](filter.md).
-
-#### Generated filters
-These filters are read-only and cannot be removed, but they can be disabled:
+#### Disabling generated filters
 * **Specific:** you can control individual filters if you use set their state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
 
 * **By price:** generally *generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*.
 
 * **By category:** you can disable filters by categories but it can't be done using the UI yet.  
-If you want to do that you need to open up *filters.config.json* and fill *disabled_categories*. Make sure the application is closed before you do. Example how this looks like:
+to do that you need to open up *filters.config.json* and fill *disabled_categories*. Make sure the application is closed before you do. Example how this looks like:
 ```
 {
     "default_fprice_override": "* 0.7",
@@ -65,7 +64,8 @@ If you want to do that you need to open up *filters.config.json* and fill *disab
         "uniquearmour",
         "uniqueflask",
         "uniquejewel",
-        "uniqueweapon"
+        "uniqueweapon",
+        "uniquemap"
     ],
     "filter_price_overrides": {},
     "filter_state_overrides": {},
