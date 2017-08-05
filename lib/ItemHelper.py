@@ -555,7 +555,7 @@ class Item:
 
         total = 0
         for mod in mods:
-            match = armour_expr.match(mod)
+            match = evasion_expr.match(mod)
             if match:
                 total += float(match.group(1))
         return evasion * (120 + total) / (quality + 100 + total)
