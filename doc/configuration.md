@@ -2,7 +2,7 @@
 You can configure almost everything using the UI. It is important you take the time to understand and configure the tool properly if you want to get the most out of it. Make sure to apply/save once you're done making changes.
 
 ## Filters
-There are two types of filters:
+Filters are used to find the items you want. there are two types of filters:
 - **Custom:** user filters, configured using the filter editor. for reference, see [filter guide](filter.md).
 - **Generated:** these are generated automatically, for every item retrieved from the API a filter is generated.  
  They are read-only and cannot be removed. You can though, adjust their prices and disable/enable them. This is done in the *Prices tab*.
@@ -42,12 +42,11 @@ Here you can view and customize currency rates
 
 Note the API might not provide a rate for extremely rare currency such as mirrors/eternal orbs. This can create false alerts because their rate will default to 0.
 To avoid that, provide an estimated price using an override, such as `50 ex` or whatever you see fit.
- 
 
-#### Disabling generated filters
-* **Specific:** you can control individual filters if you use set their state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
-
+## Disabling generated filters
 * **By price:** generally *generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*.
+
+* **Specific:** you can control individual filters if you use set their state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
 
 * **By category:** you can disable filters by categories but it can't be done using the UI yet.  
 to do that you need to open up *filters.config.json* and fill *disabled_categories*. Make sure the application is closed before you do. Example how this looks like:
