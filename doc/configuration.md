@@ -43,9 +43,10 @@ To avoid that, provide an estimated price using an override, such as `50 ex` or 
 
 ## Filters
 #### Configuration
-Item filters are configured using the filter editor. for specific information on filters, view the [filter guide](filter.md).
+Custom filters are configured using the filter editor. for specific information on filters, view the [filter guide](filter.md).
 
-#### Disabling generated filters
+#### Generated filters
+These filters are read-only and cannot be removed, but they can be disabled:
 * **Specific:** you can control individual filters if you use set their state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
 
 * **By price:** Generally *generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*.
