@@ -57,11 +57,11 @@ class ConfigEditor(Notebook):
 
         self.settings_editor_id, self.prices_tab_id, self.currency_tab_id = self.tabs()
 
-    def loadCurrency(self):
-        self.currency_editor.loadCurrency()
+    def loadCurrency(self, force=False):
+        self.currency_editor.loadCurrency(force_reload=force)
 
-    def loadPrices(self):
-        self.prices_editor.loadPrices()
+    def loadPrices(self, force=False):
+        self.prices_editor.loadPrices(force_reload=force)
 
     def loadSettings(self):
         self.settings_editor.loadSettings()
@@ -69,18 +69,22 @@ class ConfigEditor(Notebook):
     def onTabChange(self, event=None):
         current_tab_id = self.select()
         if current_tab_id == self.currency_tab_id:
-            self.loadCurrency()
+            self.loadCurrency(force=True)
         elif current_tab_id == self.prices_tab_id:
-            self.loadPrices()
+            self.loadPrices(force=True)
         elif current_tab_id == self.settings_editor_id:
             self.loadSettings()
     # def onClose(self):
     #     self.destroy()
 
-leagueOptions = ["Standard",
-                 "Hardcore",
-                 "Beta Standard",
-                 "Beta Hardcore"]
+leagueOptions = [
+    'Harbinger',
+    'Hardcore Harbinger',
+    'Standard',
+    'Hardcore',
+    # 'Beta Standard',
+    # 'Beta Hardcore'
+]
 
 scanModeOptions = ['Latest', 'Continue']
 

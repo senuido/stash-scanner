@@ -130,13 +130,16 @@ class Item:
     __slots__ = ('_item', 'c_name', 'base', 'ilvl', 'links_count', 'corrupted', 'mirrored', 'identified', 'stacksize',
                  'c_price',
                  'implicit', 'explicit', 'enchant', 'craft', '_mods', 'sockets_count', 'buyout', 'type',
-                 'crafted', 'enchanted', 'modcount', 'quality', 'level', 'exp',
+                 'crafted', 'enchanted', 'modcount',
+                 '_quality', '_level', '_exp',
 
                  'price',  # price before conversion
 
                  '_armour', '_evasion', '_es', '_life',
                  '_fres', '_cres', '_lres', '_chres', '_ele_res',
-                 '_aps', '_dps', '_pdps', '_edps', '_formatted_properties',
+                 '_aps', '_crit', '_block',
+                 '_dps', '_pdps', '_edps',
+                 '_formatted_properties',
                  '_strength_bonus', '_dex_bonus', '_int_bonus', '_attributes_bonus')
 
     def __init__(self, item, stash_price):
@@ -169,21 +172,20 @@ class Item:
         self.enchanted = len(self.enchant) > 0
         self.modcount = len(self.implicit) + len(self.explicit) + len(self.enchant) + len(self.craft)
 
-        # # Properties and computed fields
+        # Properties and on-demand computed fields
 
-        lvl, exp = self.get_prop_value('Level'), self.get_item_prop('Experience')
-
-        self.level = float(lvl[0][0].split()[0]) if lvl else 0
-        self.exp = exp['progress'] * 100 if exp else 0
-
-        quality = self.get_prop_value('Quality')
-        self.quality = int(quality[0][0].strip('+%')) if quality else 0
+        self._quality = None
+        self._level = None
+        self._exp = None
 
         self._es = None
         self._armour = None
         self._evasion = None
 
         self._aps = None
+        self._crit = None
+        self._block = None
+
         self._edps = None
         self._pdps = None
         self._dps = None
@@ -209,10 +211,40 @@ class Item:
         return self._mods
 
     @property
+    def modifiable(self):
+        return not (self.corrupted or self.mirrored)
+
+    @property
+    def quality(self):
+        if self._quality is None:
+            quality = self.get_prop_value('Quality')
+            self._quality = int(quality[0][0].strip('+%')) if quality else 0
+        return self._quality
+
+    @property
+    def level(self):
+        if self._level is None:
+            level = self.get_prop_value('Level')
+            self._level = float(level[0][0].split()[0]) if level else 0
+        return self._level
+
+    # @property
+    # def tier(self):
+    #     if self._tier is None:
+    #         tier = self.get_prop_value()
+
+    @property
+    def exp(self):
+        if self._exp is None:
+            exp = self.get_item_prop('Experience')
+            self._exp = float(exp['progress']) * 100 if exp else 0
+        return self._exp
+
+    @property
     def es(self):
         if self._es is None:
             val = self.get_prop_value('Energy Shield')
-            self._es = self.get_item_es(self.quality, self.corrupted or self.mirrored,
+            self._es = self.get_item_es(self.quality, self.modifiable,
                                    self.mods, float(val[0][0])) if val else 0
         return self._es
 
@@ -220,15 +252,15 @@ class Item:
     def armour(self):
         if self._armour is None:
             armour = self.get_prop_value('Armour')
-            self._armour = self.get_item_armour(self.quality, self.corrupted or self.mirrored,
+            self._armour = self.get_item_armour(self.quality, self.modifiable,
                                            self.mods, float(armour[0][0])) if armour else 0
         return self._armour
 
     @property
     def evasion(self):
         if self._evasion is None:
-            val = self.get_prop_value('Evasion')
-            self._evasion = self.get_item_evasion(self.quality, self.corrupted or self.mirrored,
+            val = self.get_prop_value('Evasion Rating')
+            self._evasion = self.get_item_evasion(self.quality, self.modifiable,
                                              self.mods, float(val[0][0])) if val else 0
         return self._evasion
 
@@ -257,6 +289,20 @@ class Item:
             self._aps = float(aps[0][0]) if aps else 0
         return self._aps
 
+    @property
+    def crit(self):
+        if self._crit is None:
+            crit = self.get_prop_value('Critical Strike Chance')
+            self._crit = float(crit[0][0].strip('%')) if crit else 0
+        return self._crit
+
+    @property
+    def block(self):
+        if self._block is None:
+            block = self.get_prop_value('Chance to Block')
+            self._block = float(block[0][0].strip('%')) if block else 0
+        return self._block
+
     def _fill_dps(self):
         if self.aps:
             pavg, eavg, cavg = self.get_prop_value('Physical Damage'), \
@@ -264,7 +310,7 @@ class Item:
 
             if pavg:
                 pavg = sum((float(i) for i in pavg[0][0].split('-'))) / 2
-                self._pdps = self.get_item_pdps(self.quality, self.corrupted or self.mirrored, self.mods, pavg, self.aps)
+                self._pdps = self.get_item_pdps(self.quality, self.modifiable, self.mods, pavg, self.aps)
             else:
                 self._pdps = 0
 
@@ -467,8 +513,8 @@ class Item:
         return links
 
     @staticmethod
-    def get_item_pdps(quality, unmodifiable, mods, pavg, aps):
-        if unmodifiable or quality == 20:
+    def get_item_pdps(quality, modifiable, mods, pavg, aps):
+        if not modifiable or quality == 20:
             return pavg * aps
 
         total = 0
@@ -479,8 +525,8 @@ class Item:
         return pavg * (120 + total) / (quality + 100 + total) * aps
 
     @staticmethod
-    def get_item_es(quality, unmodifiable, mods, es):
-        if unmodifiable or quality == 20:
+    def get_item_es(quality, modifiable, mods, es):
+        if not modifiable or quality == 20:
             return es
 
         total = 0
@@ -491,8 +537,8 @@ class Item:
         return es * (120 + total) / (quality + 100 + total)
 
     @staticmethod
-    def get_item_armour(quality, unmodifiable, mods, armour):
-        if unmodifiable or quality == 20:
+    def get_item_armour(quality, modifiable, mods, armour):
+        if not modifiable or quality == 20:
             return armour
 
         total = 0
@@ -503,8 +549,8 @@ class Item:
         return armour * (120 + total) / (quality + 100 + total)
 
     @staticmethod
-    def get_item_evasion(quality, unmodifiable, mods, evasion):
-        if unmodifiable or quality == 20:
+    def get_item_evasion(quality, modifiable, mods, evasion):
+        if not modifiable or quality == 20:
             return evasion
 
         total = 0

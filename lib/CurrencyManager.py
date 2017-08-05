@@ -84,7 +84,8 @@ class CurrencyManager:
             try:
                 self.last_update = datetime.strptime(last_update, '%Y-%m-%dT%H:%M:%S.%f')
             except ValueError:
-                self.last_update = datetime.utcnow() - timedelta(minutes=self.UPDATE_INTERVAL)
+                # self.last_update = datetime.utcnow() - timedelta(minutes=self.UPDATE_INTERVAL)
+                self.last_update = None
 
             for curr in self.shorts:
                 self.shorts[curr] = list(set([short.lower() for short in self.shorts[curr]]))
@@ -135,7 +136,7 @@ class CurrencyManager:
     def needUpdate(self):
         return not self.last_update or (datetime.utcnow() - self.last_update) >= timedelta(minutes=self.UPDATE_INTERVAL)
 
-    def update(self, force_update=False):
+    def update(self, force_update=False, accept_empty=False):
         if not force_update and not self.needUpdate:
             return
 
@@ -147,20 +148,20 @@ class CurrencyManager:
             for url in CurrencyManager.CURRENCY_API:
                 data = getJsonFromURL(url.format(config.league))
 
-                if data is None:
-                    raise AppException("Currency update failed. bad response from server.")
+                if data is None and not accept_empty:
+                    raise AppException("Currency update failed. Empty response from server.")
 
-                shorts.update({currency['name']: currency['shorthands'] for currency in data["currencyDetails"]})
-                rates.update({currency['currencyTypeName']: float(currency['chaosEquivalent']) for currency in data["lines"]})
+                if data:
+                    shorts.update({currency['name']: currency['shorthands'] for currency in data["currencyDetails"]})
+                    rates.update({currency['currencyTypeName']: float(currency['chaosEquivalent']) for currency in data["lines"]})
 
             cur_shorts = dict(self.shorts)
-            for curr in shorts:
-                shorts[curr] = list(set(cur_shorts.get(curr, []) + shorts[curr]))
+            for name in cur_shorts:
+                shorts[name] = list(set(cur_shorts[name] + shorts.get(name, [])))
 
             # can use update if we want to keep information from past updates, more robust if server returns less data
             # dict(self.rates).update(rates)
-
-            self.compile(shorts, rates, last_update=datetime.utcnow())
+            self.compile(shorts, rates, last_update=datetime.utcnow() if rates else None)
         except pycurl.error as e:
             raise AppException("Currency update failed. Connection error: {}".format(e))
         except AppException:

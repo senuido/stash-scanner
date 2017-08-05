@@ -24,11 +24,21 @@ _FILTER_PRIO = {
     'modcount_max': 1,
     'buyout': 1,
 
-    'level_min': 1,
-    'level_max': 1,
-    'exp': 1,
-    'quality_min': 1,
-    'quality_max': 1,
+    'links_min': 1,
+    'links_max': 1,
+
+    'level_min': 2,
+    'level_max': 2,
+    'exp': 2,
+    'quality_min': 2,
+    'quality_max': 2,
+
+    'aps_min': 2,
+    'aps_max': 2,
+    'crit_min': 2,
+    'crit_max': 2,
+    'block_min': 2,
+    'block_max': 2,
 
     'pdps_min': 3,
     'edps_min': 3,
@@ -43,9 +53,6 @@ _FILTER_PRIO = {
     'es_max': 3,
     'armour_max': 3,
     'evasion_max': 3,
-
-    'links_min': 2,
-    'links_max': 2,
 
     'fgs': 5
 }
@@ -105,7 +112,7 @@ class CompiledFilter:
                 if self.comp[key] != item.corrupted:
                     return False
             elif key == "modifiable":
-                if not self.comp[key] != (item.mirrored or item.corrupted):
+                if self.comp[key] != item.modifiable:
                     return False
             elif key == "identified":
                 if self.comp[key] != item.identified:
@@ -199,6 +206,25 @@ class CompiledFilter:
                     return False
             elif key == "dps_max":
                 if self.comp[key] < item.dps:
+                    return False
+
+            elif key == 'aps_min':
+                if self.comp[key] > item.aps:
+                    return False
+            elif key == 'aps_max':
+                if self.comp[key] < item.aps:
+                    return False
+            elif key == 'crit_min':
+                if self.comp[key] > item.crit:
+                    return False
+            elif key == 'crit_max':
+                if self.comp[key] < item.crit:
+                    return False
+            elif key == 'block_min':
+                if self.comp[key] > item.block:
+                    return False
+            elif key == 'block_max':
+                if self.comp[key] < item.block:
                     return False
 
         return True

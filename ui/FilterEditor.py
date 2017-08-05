@@ -1038,6 +1038,22 @@ class FilterEditor(Toplevel):
 
         self.addRow(Separator(parent), columnspan=8)
 
+        ## APS / Crit / Block
+        self.addRow(Label(parent, text="APS:"), sticky='e')
+        entry_min, entry_max = self._add_min_max(parent, validate='all', validatecommand=(is_number_cmd, '%P'))
+        self.filter_form.field_register('aps_min', entry_min, float, level)
+        self.filter_form.field_register('aps_max', entry_max, float, level)
+
+        self.addColumn(Label(parent, text="Critical (%):"), sticky='e')
+        entry_min, entry_max = self._add_min_max(parent, validate='all', validatecommand=(is_number_cmd, '%P'))
+        self.filter_form.field_register('crit_min', entry_min, float, level)
+        self.filter_form.field_register('crit_max', entry_max, float, level)
+
+        self.addColumn(Label(parent, text="Block (%):"), sticky='e')
+        entry_min, entry_max = self._add_min_max(parent, validate='all', validatecommand=(is_number_cmd, '%P'))
+        self.filter_form.field_register('block_min', entry_min, float, level)
+        self.filter_form.field_register('block_max', entry_max, float, level)
+
         ## DPS
         self.addRow(Label(parent, text="DPS:"), sticky='e')
         entry_min, entry_max = self._add_min_max(parent, validate='all', validatecommand=(is_number_cmd, '%P'))

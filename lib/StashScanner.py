@@ -180,11 +180,21 @@ class StashScanner:
         c = pycurl.Curl()
         ahead = False
         data = ""
-        sleep_time = 0
+        last_req = 0
+        delay_time = 0
         num_cores = os.cpu_count()
+        failed_attempts = 0
+
+        def get_sleep_time():
+            if failed_attempts:
+                sleep_time = max(min(2 ** failed_attempts, 30), config.request_delay - time.time() + last_req)
+            else:
+                sleep_time = delay_time
+
+            return sleep_time
 
         msgr.send_msg("Scanning started")
-        while not self._stop.wait(sleep_time):
+        while not self._stop.wait(get_sleep_time()):
             try:
                 msgr.send_update_id(self.stateMgr.getChangeId())
                 data_count = (0, 0, 0)
@@ -192,16 +202,19 @@ class StashScanner:
                 last_req = time.time()
                 data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
                 dl_time = time.time() - last_req
+
                 if data is None:
-                    msgr.send_tmsg("Bad response while retrieving data from URL: {}".format(stashUrl), logging.ERROR)
-                    sleep_time = 2
+                    msgr.send_tmsg("Invalid response while retrieving stash data.", logging.ERROR)
+                    # sleep_time = 2
+                    failed_attempts += 1
                     continue
 
                 if "error" in data:
                     msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
                     # c.close()
                     c = pycurl.Curl()
-                    sleep_time = 10
+                    # sleep_time = 10
+                    failed_attempts += 1
                     continue
 
                 # Process if its the first time we're in this id
@@ -231,17 +244,20 @@ class StashScanner:
                 parse_time = time.time() - last_parse
 
                 delta = time.time() - last_req
-                sleep_time = max(float(config.request_delay) - delta, 0)
+                delay_time = max(float(config.request_delay) - delta, 0)
                 msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s, "
                               "Tabs: {}, League tabs: {}, Items: {}"
-                              .format(delta, dl_time, parse_time, sleep_time, *data_count), logging.DEBUG)
+                              .format(delta, dl_time, parse_time, delay_time, *data_count), logging.DEBUG)
+
+                failed_attempts = 0
 
             except pycurl.error as e:
                 errno, msg = e.args
                 msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
                 c.close()
                 c = pycurl.Curl()
-                sleep_time = 5
+                # sleep_time = 5
+                failed_attempts += 1
                 continue
             except Exception as e:
                 msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
@@ -251,7 +267,8 @@ class StashScanner:
 
                 c.close()
                 c = pycurl.Curl()
-                sleep_time = 10
+                failed_attempts += 1
+                # sleep_time = 10
 
     @staticmethod
     def clearLeagueData():
@@ -291,6 +308,8 @@ class ItemResult:
         self.prophecy = item.prophecy
 
         self.quality = item.quality
+        self.level = item.level
+        self.exp = item.exp
         # self.phys = item.phys
         # self.elem = item.elem
         self.aps = item.aps
@@ -301,9 +320,8 @@ class ItemResult:
         self.armour = item.armour
         self.evasion = item.evasion
         self.es = item.es
-        # self.block = item.block
-        # self.crit = item.crit
-        self.level = item.level
+        self.block = item.block
+        self.crit = item.crit
 
         self.sockets = [ItemSocket(socket) for socket in item.sockets]
         self.links_string = item.get_item_links_string()

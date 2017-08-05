@@ -254,6 +254,15 @@ def round_up(num):
         return int(num)
     return int(num) + 1
 
+def round_down(num):
+    if int(num) == num:
+        return int(num)
+    return int(num)
+
+def dround(num, ndigits=2):
+    if int(num) == num:
+        return int(num)
+    return round(num, ndigits)
 
 def tmsg(msg):
     return "{}# {}".format(time.strftime("%H:%M:%S"), msg)

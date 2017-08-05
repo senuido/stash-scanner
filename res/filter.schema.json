@@ -203,6 +203,30 @@
 					"id": "/criteria/evasion_max",
 					"type": "number"
 				},
+				"aps_min": {
+					"id": "/criteria/aps_min",
+					"type": "number"
+				},
+				"aps_max": {
+					"id": "/criteria/aps_max",
+					"type": "number"
+				},
+				"crit_min": {
+					"id": "/criteria/crit_min",
+					"type": "number"
+				},
+				"crit_max": {
+					"id": "/criteria/crit_max",
+					"type": "number"
+				},
+				"block_min": {
+					"id": "/criteria/block_min",
+					"type": "number"
+				},
+				"block_max": {
+					"id": "/criteria/block_max",
+					"type": "number"
+				},
 				"edps_min": {
 					"id": "/criteria/epds_min",
 					"type": "number"

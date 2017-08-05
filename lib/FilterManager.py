@@ -72,7 +72,7 @@ class FilterManager:
                         _AUTO_FILTERS_FNAME: threading.Lock()}
     config_file_lock = threading.Lock()
     UPDATE_INTERVAL = 20  # minutes
-    DEFAULT_PRICE_THRESHOLD = '1 exalted'
+    DEFAULT_PRICE_THRESHOLD = '10 chaos'
     DEFAULT_PRICE_OVERRIDE = '* 1'
     DEFAULT_FPRICE_OVERRIDE = '* 0.7'
 
@@ -153,7 +153,7 @@ class FilterManager:
     def filter_prices(self):
         return self.compiled_item_prices
 
-    def fetchFromAPI(self, force_update=False):
+    def fetchFromAPI(self, force_update=False, accept_empty=False):
         if not force_update and not self.needUpdate:
             return
 
@@ -166,58 +166,62 @@ class FilterManager:
             for url in _URLS:
                 furl = url.format(config.league)
                 data = getJsonFromURL(furl, handle=c, max_attempts=3)
-                if data is None:
-                    raise AppException("Filters update failed. Bad response from server")
+                if data is None and not accept_empty:
+                    raise AppException("Filters update failed. Empty response from server")
 
-                category = re.match(".*Get(.*)Overview", furl).group(1).lower()
+                if data:
+                    category = re.match(".*Get(.*)Overview", furl).group(1).lower()
 
-                for item in data['lines']:
-                    crit = {}
-                    crit['price_max'] = "{} exalted".format(float(item.get('exaltedValue', 0)))
-                    crit['name'] = [item['name'].lower()]
-                    crit['type'] = [_ITEM_TYPE[item['itemClass']]]
-                    crit['buyout'] = True
+                    for item in data['lines']:
+                        crit = {}
+                        # crit['price_max'] = "{} exalted".format(float(item.get('exaltedValue', 0)))
+                        crit['price_max'] = "{} chaos".format(float(item.get('chaosValue', 0)))
+                        crit['name'] = [item['name'].lower()]
+                        crit['type'] = [_ITEM_TYPE[item['itemClass']]]
+                        crit['buyout'] = True
 
-                    title = "{} {} {}".format(
-                        'Legacy' if 'relic' in crit['type'] else '',
-                        item['name'],
-                        item['variant'] if item['variant'] is not None else '').strip()
+                        title = "{} {} {}".format(
+                            'Legacy' if 'relic' in crit['type'] else '',
+                            item['name'],
+                            item['variant'] if item['variant'] is not None else '').strip()
 
-                    # find a unique id
-                    base_id = '_' + title.lower().replace(' ', '_')
-                    id = base_id
-                    n = 2
-                    while id in filter_ids:
-                        id = '{}{}'.format(base_id, n)
-                        n += 1
+                        # find a unique id
+                        base_id = '_' + title.lower().replace(' ', '_')
+                        id = base_id
+                        n = 2
+                        while id in filter_ids:
+                            id = '{}{}'.format(base_id, n)
+                            n += 1
 
-                    filter_ids.append(id)
-                    # if n > 2:
-                    #     print('base_id {} was taken, using {} instead'.format(base_id, id))
+                        filter_ids.append(id)
+                        # if n > 2:
+                        #     print('base_id {} was taken, using {} instead'.format(base_id, id))
 
-                    fltr = Filter(title, crit, False, category, id=id)
+                        fltr = Filter(title, crit, False, category, id=id)
 
-                    if item['variant'] is not None:
-                        if item['variant'] not in _VARIANTS:
-                            msgr.send_msg("Unknown variant {} in item {}".format(item['variant'], item['name']),
-                                          logging.WARN)
-                        else:
-                            # crit['explicit'] = {'mods': [{'expr': _VARIANTS[item['variant']]}]}
-                            fg = AllFilterGroup()
-                            fg.mfs = [ModFilter(ModFilterType.Explicit, _VARIANTS[item['variant']])]
-                            fltr.criteria['fgs'] = [fg.toDict()]
+                        if item['variant'] is not None:
+                            if item['variant'] not in _VARIANTS:
+                                msgr.send_msg("Unknown variant {} in item {}".format(item['variant'], item['name']),
+                                              logging.WARN)
+                            else:
+                                # crit['explicit'] = {'mods': [{'expr': _VARIANTS[item['variant']]}]}
+                                fg = AllFilterGroup()
+                                fg.mfs = [ModFilter(ModFilterType.Explicit, _VARIANTS[item['variant']])]
+                                fltr.criteria['fgs'] = [fg.toDict()]
 
-                    fltr.validate()
-                    filters.append(fltr)
+                        fltr.validate()
+                        filters.append(fltr)
 
             self.autoFilters = filters
             self.item_prices = self.getPrices(self.autoFilters)
             self.saveAutoFilters()
-            self.last_update = datetime.utcnow()
+            self.last_update = datetime.utcnow() if filters else None
         except pycurl.error as e:
             raise AppException("Filters update failed. Connection error: {}".format(e))
         except (KeyError, ValueError) as e:
             raise AppException("Filters update failed. Parsing error: {}".format(e))
+        except AppException:
+            raise
         except Exception as e:
             logexception()
             raise AppException("Filters update failed. Unexpected error: {}".format(e))
@@ -409,8 +413,8 @@ class FilterManager:
 
             cf.comp['price_max'] = cm.compilePrice(override, cf.comp['price_max'])
 
-        for override in set(self.price_overrides) - used_price_overrides:
-            msgr.send_msg('Unused item price override: {}'.format(override), logging.WARN)
+        # for override in set(self.price_overrides) - used_price_overrides:
+        #     msgr.send_msg('Unused item price override: {}'.format(override), logging.WARN)
 
     def applyOverrides(self, filters):
         used_price_overrides = set()
@@ -438,11 +442,11 @@ class FilterManager:
             cf.enabled = state
             cf.comp['price_max'] = cm.compilePrice(override, cf.comp['price_max'])
 
-        for override in set(self.filter_price_overrides) - used_price_overrides:
-            msgr.send_msg('Unused filter price override: {}'.format(override), logging.WARN)
-
-        for override in set(self.filter_state_overrides) - used_state_overrides:
-            msgr.send_msg('Unused filter state override: {}'.format(override), logging.WARN)
+        # for override in set(self.filter_price_overrides) - used_price_overrides:
+        #     msgr.send_msg('Unused filter price override: {}'.format(override), logging.WARN)
+        #
+        # for override in set(self.filter_state_overrides) - used_state_overrides:
+        #     msgr.send_msg('Unused filter state override: {}'.format(override), logging.WARN)
 
     def validateConfig(self):
         if not cm.isPriceValid(self.price_threshold):

@@ -1,6 +1,7 @@
 # Stash Scanner
-Stash scanner is a lightweight item searching tool for Path of Exile that works at the stash API level.  
-The project is open-source, written in Python, licensed under [GNU GPLv3](LICENSE).
+Stash scanner is a lightweight item search tool that works directly with PoE stash API    
+It serves mainly as a live search tool for sniping and flipping items  
+The project is open-source, written in Python, licensed under [GNU GPLv3](LICENSE)
 
 <img src=https://github.com/senuido/stash-scanner/raw/master/files/images/stash_scanner.jpg width=400 height=200> <img src=https://github.com/senuido/stash-scanner/raw/master/files/images/filter_editor.jpg width=400 height=200>
 
@@ -12,10 +13,10 @@ The project is open-source, written in Python, licensed under [GNU GPLv3](LICENS
 - Allows you to configure your own item filters which can:
   - have their price be based on API prices
   - relate to other filters, allowing easier management
-  - Use custom mods to complement missing mods or allow for more advanced searches
+  - use custom mods to complement missing mods or allow for more advanced searches
 - Alerts when a match is found, a notification message is shown and a whisper message is copied to the clipboard
 - Stores a minimal amount of information to prevent unnecessary notifications (it does not index items).
-- Directly connects to the PoE stash API. without a middleman, you can get your results faster
+- Directly connects to PoE stash API. without a middleman, you can get your results faster
 
 ## Installation
 - Install [Growl for Windows](http://www.growlforwindows.com/gfw/d.ashx?f=GrowlInstaller.exe), required for notifications

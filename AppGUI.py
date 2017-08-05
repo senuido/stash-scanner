@@ -25,7 +25,7 @@ from lib.FilterManager import FiltersInfo, fm, FILTERS_CFG_FNAME, FilterManager
 from lib.ItemHelper import ItemType, PropDisplayMode, ItemSocketType
 from lib.StashScanner import StashScanner, ItemResult
 from lib.Utility import MsgType, msgr, getDataFromUrl, round_up, AppException, getJsonFromURL, config, AppConfiguration, \
-    logexception
+    logexception, dround
 from ui.ConfigEditor import ConfigEditor
 from ui.FilterEditor import FilterEditor
 from ui.LoadingScreen import LoadingScreen
@@ -65,6 +65,8 @@ class AppGUI(Tk):
     REQ_COLOR = '#999'
     MATCHES_COLOR = '#999'
     UNID_COLOR = '#C22626'
+    PROP_COLOR = '#e6e6e6'
+    ENHANCED_COLOR = '#41CA41'
 
     TT_WHITE_COLOR = '#c8c8c8'
     TT_MAGIC_COLOR = '#8888ff'
@@ -104,7 +106,7 @@ class AppGUI(Tk):
         ItemType.Relic: 'name-relic'
     }
 
-    VERSION_NUMBER = 'v1.0'
+    VERSION_NUMBER = 'v1.01'
     VERSION_URL = 'https://github.com/senuido/stash-scanner/raw/master/files/latest'
     RELEASES_URL = 'https://github.com/senuido/stash-scanner/releases/latest'
     VERSION_TEXT = 'Stash Scanner {}'.format(VERSION_NUMBER)
@@ -243,6 +245,7 @@ class AppGUI(Tk):
                 self.on_close()
                 return
 
+            self.init_warn()
             self.currency_info = CurrencyInfo()
             self.filters_info = FiltersInfo()
 
@@ -251,6 +254,18 @@ class AppGUI(Tk):
             logexception()
             logger.error('Unexpected error while attempting to change league.\n{}'.format(e))
             messagebox.showerror('Save error', 'Unexpected error while trying to save settings:\n{}'.format(e))
+
+    def init_warn(self):
+        warnings = ''
+        if not len(cm.rates):
+            warnings += 'Currency information is empty because the server returned no data. ' \
+                        'Currency rates will be 0 unless set manually.\n'
+        if not len(fm.autoFilters):
+            warnings += 'Filters were not generated because the server returned no data.\n'
+
+        if warnings:
+            warnings += '\nYou can either continue in this mode or restart the application if you wish to try again.'
+            messagebox.showwarning('Warning', warnings, parent=self)
 
     def _stop_scan(self, ls):
         ls.updateStatus('Stopping scan..', 10)
@@ -279,6 +294,7 @@ class AppGUI(Tk):
             self.on_close()
             return
 
+        self.init_warn()
         self.nb_cfg.onTabChange()
 
         self.after(100, self.handle_msgs)
@@ -311,7 +327,7 @@ class AppGUI(Tk):
             if cm.needUpdate:
                 try:
                     ls.updateStatus('Downloading currency information', 10)
-                    cm.update()
+                    cm.update(accept_empty=True)
                 except AppException as e:
                     pass
 
@@ -332,16 +348,13 @@ class AppGUI(Tk):
             ls.updateStatus('Loading filters', 50)
             try:
                 fm.loadAutoFilters()
-            except AppException as e:
-                # self.init_error = ('Filters error',
-                #                    'Failed to load user/generated filters.\n{}'.format(e))
-                # ls.close()
+            except AppException:
                 filter_fallback = True
 
             if fm.needUpdate or filter_fallback:
                 try:
                     ls.updateStatus('Generating filters from API', 55)
-                    fm.fetchFromAPI()
+                    fm.fetchFromAPI(accept_empty=True)
                 except AppException as e:
                     if filter_fallback:
                         raise AppException('Filters error',
@@ -420,6 +433,44 @@ class AppGUI(Tk):
         self.lst_msgs = Listbox(self.frm_console, background=self.BG_COLOR, selectmode=SINGLE)
         self.lst_msgs.bind('<<ListboxSelect>>', self.lst_selected)
         self.lst_msgs.grid(row=0, column=1, sticky='nsew')
+
+        def listbox_down(event):
+            w = event.widget
+            index = 0
+            if w.curselection():
+                index = int(w.curselection()[0]) + 1
+            if index == w.size():
+                index = 0
+
+            w.selection_clear(0, END)
+            if index < w.size():
+                w.activate(index)
+                w.selection_set(index)
+                w.see(index)
+                w.event_generate('<<ListboxSelect>>')
+
+            return 'break'
+
+        def listbox_up(event):
+            w = event.widget
+            if w.curselection():
+                index = int(w.curselection()[0]) - 1
+                if index == - 1:
+                    index = w.size() - 1
+            else:
+                index = w.size() - 1
+
+            w.selection_clear(0, END)
+            if index >= 0:
+                w.activate(index)
+                w.selection_set(index)
+                w.see(index)
+                w.event_generate('<<ListboxSelect>>')
+
+            return 'break'
+
+        self.lst_msgs.bind('<Down>', listbox_down)
+        self.lst_msgs.bind('<Up>', listbox_up)
 
         scroll = AutoScrollbar(self.frm_console)
         scroll.grid(row=0, column=0, sticky='nsew')
@@ -523,7 +574,8 @@ class AppGUI(Tk):
                                        font=font_tag)
 
         self.txt_details.tag_configure('implicit', font=font_underline)
-
+        self.txt_details.tag_configure('enhanced', font=font_default, foreground=self.ENHANCED_COLOR)
+        self.txt_details.tag_configure('prop', font=font_bold, foreground=self.PROP_COLOR)
         self.txt_details.tag_configure('requirement', foreground=self.REQ_COLOR, font=font_subtext)
         self.txt_details.tag_configure('totals', foreground=self.MATCHES_COLOR)
         self.txt_details.tag_configure('bold', font=font_bold)
@@ -673,6 +725,7 @@ class AppGUI(Tk):
         else:
             self.pane_wnd.forget(self.frm_details)
             self.pane_wnd.add(self.frm_details)
+            self.update_idletasks()
 
     def update_details_filters(self, obj):
         if not isinstance(obj, FiltersInfo):
@@ -813,6 +866,11 @@ class AppGUI(Tk):
                 details.insert(END, 'crafted', 'crafted')
                 details.insert(END, " {}\n".format(mod))
 
+        if item.mirrored:
+            if item.mods:
+                details.insert(END, '\n')
+            details.insert(END, 'Mirrored\n', 'bold')
+
         if item.filter_totals:
             details.insert(END, '\n')
             totals = []
@@ -826,31 +884,35 @@ class AppGUI(Tk):
             for total in sorted(totals):
                 details.insert(END, total + '\n', 'totals')
 
+        managed_props = ['Armour', 'Evasion Rating', 'Energy Shield',
+                         'Quality', 'Level', 'Experience',
+                         # 'Attacks per Second', 'Critical Strike Chance', 'Chance to Block'
+                         'Physical Damage', 'Elemental Damage', 'Chaos Damage',
+                         'Currently has %0 Charges',
+                         ]
+
         props = ''
         if item.properties:
-            if item.mods or not item.identified:
-                details.insert(END, '\n'*3, 'tiny')
+            if item.mods or not item.identified or item.mirrored:
+                details.insert(END, '\n'*2, 'tiny')
 
-            tabbed_props = [prop for prop in item.properties
+            generic_props = [prop for prop in item.properties if prop.name not in managed_props]
+            tabbed_props = [prop for prop in generic_props
                             if prop.display_mode != PropDisplayMode.Format and prop.values]
 
             if len(tabbed_props) <= 1:
                 tabs = 0
             else:
-                # prop_lengths = [len(prop['name']) if prop['displayMode'] != PropDisplayMode.Format and prop.get('values')
-                #                 else 0 for prop in item.properties]
                 prop_lengths = [len(prop.name) for prop in tabbed_props]
                 tabs = max(round_up(max(prop_lengths) / self.TK_TABWIDTH), 2)
 
             spacing = '\t' * tabs if tabs else ' '
-            for prop in sorted(item.properties, key=lambda x: x.display_mode):
+            for prop in sorted(generic_props, key=lambda x: x.display_mode):
                 if props:
                     props += '\n'
                 if prop.values:
                     # PropDisplayMode logic here
                     if prop.display_mode == PropDisplayMode.Progress:
-                        # props += '{}:{spacing}{}% ({})'.format(prop['name'], round(prop['progress']*100),
-                        #                                        prop['values'][0][0], spacing=spacing)
                         props += '{}:{spacing}{}%'.format(prop.name, round(prop.progress * 100), spacing=spacing)
                     elif prop.display_mode == PropDisplayMode.Format:
                         # PropValueType logic here
@@ -860,13 +922,58 @@ class AppGUI(Tk):
                         props += '{}:{spacing}{}'.format(prop.name, prop.values[0].val, spacing=spacing)
                 else:
                     props += '{}'.format(prop.name)
+            if props:
+                details.insert(END, props + '\n')
+                details.insert(END, '\n', 'tiny')
 
-            details.insert(END, props + '\n')
+            quality_max = 20
+            enhanceable = not (item.mirrored or item.corrupted or item.quality >= quality_max)
+            value_tag = 'enhanced' if enhanceable else ''
+            lbl_tag = 'prop'
+            sep = '\t\t'
 
-        if item.mirrored:
-            if not props:
+            if item.quality:
+                details.insert(END, 'Quality: ', lbl_tag)
+                details.insert(END, '{}'.format(item.quality))
+                if enhanceable:
+                    details.insert(END, '+{}'.format(quality_max - item.quality), value_tag)
+                details.insert(END, sep)
+
+            if item.level:
+                details.insert(END, 'Level: ', lbl_tag)
+                details.insert(END, '{}{}'.format(dround(item.level), sep))
+            if item.exp:
+                details.insert(END, 'Exp: ', lbl_tag)
+                details.insert(END, '{}%{}'.format(round_up(item.exp), sep))
+
+            if not details.is_line_empty():
                 details.insert(END, '\n')
-            details.insert(END, 'Mirrored\n', 'bold')
+
+            if item.armour:
+                details.insert(END, 'Armour: ', lbl_tag)
+                details.insert(END, '{}{}'.format(dround(item.armour), sep), value_tag)
+            if item.evasion:
+                details.insert(END, 'Evasion: ', lbl_tag)
+                details.insert(END, '{}{}'.format(dround(item.evasion), sep), value_tag)
+            if item.es:
+                details.insert(END, 'Shield: ', lbl_tag)
+                details.insert(END, '{}{}'.format(dround(item.es), sep), value_tag)
+
+            if not details.is_line_empty():
+                details.insert(END, '\n')
+
+            if item.dps:
+                details.insert(END, 'DPS: ', lbl_tag)
+                details.insert(END, '{}{}'.format(dround(item.dps), sep), value_tag)
+            if item.pdps:
+                details.insert(END, 'pDPS: ', lbl_tag)
+                details.insert(END, '{}{}'.format(dround(item.pdps), sep), value_tag)
+            if item.edps:
+                details.insert(END, 'eDPS: ', lbl_tag)
+                details.insert(END, '{}{}'.format(dround(item.edps), sep))
+
+            if not details.is_line_empty():
+                details.insert(END, '\n')
 
         if item.prophecy:
             details.insert(END, item.prophecy + '\n')
@@ -887,24 +994,22 @@ class AppGUI(Tk):
 
         details.highlight_tags()
 
-        details.insert(END, '\n'*2, 'tiny')
-
         if item.price_display:
-            img_index = '{}.0'.format(int(float(details.index(END))) - 1)
+            # img_index = '{}.0'.format(int(float(details.index(END))) - 1)
             amount, currency = item.price_display
-            details.insert(END, '\n{} x '.format(amount))
+
+            details.insert(END, '\n' * 3, 'tiny')
+            details.insert(END, '{} x '.format(amount))
             if currency in ItemDisplay.currency_images:
                 details.window_create(END, window=Label(self.txt_details, background=self.DETAILS_BG_COLOR,
                                                         image=ItemDisplay.currency_images[currency]))
             else:
                 details.insert(END, currency)
 
-            details.insert(END, '\n' * 2, 'tiny')
-
         if item.filter_name:
+            details.insert(END, '\n' * 2, 'tiny')
             details.insert(END, '\n')
             details.insert(END, 'Matched by \'{}\''.format(item.filter_name), 'italic')
-
 
             # details.tag_add('justified', img_index, END)
         # self.lbl_item_img = Label(self.txt_details, background=self.DETAILS_BG_COLOR, image=obj.image_overlay)
@@ -926,6 +1031,7 @@ class AppGUI(Tk):
 
         txt_size = details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitle'])
         self.update_details_pane_size(txt_size)
+        # self.update_idletasks()
 
     def clear_details(self):
         # with self.details_img_lock:
@@ -1173,6 +1279,12 @@ class ReadOnlyText(Text):
         # width = min(width, 600 / font_default.measure('a'))
         self.config(width=width)
         return font_default.measure('a' * round(width))
+
+    def is_line_empty(self, index='end-1c'):
+        return self.compare(index + ' linestart', '==', index + ' lineend')
+
+    def get_index(self, text, index):
+        return tuple(map(int, str.split(text.index(index), ".")))
 
 class ItemDisplay:
     CACHE = {}
