@@ -20,8 +20,7 @@ For every item retrieved from the API, a filter is generated. To allow you to tw
 Overrides follow the same format as prices. For example, to change an item's price to be 20 chaos, just put in `20 chaos`.  
 Same as prices for filters, overrides can be relative to the original price. For example: `+1 ex` or `* 3` or `/ 2`
 
-  - **Item price threshold:** think of this as the minimum value of items you're interested in. generated filters for items with effective price below this threshold will be disabled.  
-    By settings this to a high enough value, you can disable all generated filters if you wish.
+  - **Item price threshold:** think of this as the minimum value of items you're interested in. *Generated* filters for items with effective price below this threshold will be disabled.
   - **Default price override:** default item price override. if none is specified, this is used.
   - **Default filter override:** default filter price override. if none is specified, this is used. By setting this to `* 0.8` you're telling the app you want to be notified when an item is posted at 80% of its API price.
   - Table  
@@ -43,7 +42,37 @@ Note the API might not provide a rate for extremely rare currency such as mirror
 To avoid that, provide an estimated price using an override, such as `50 ex` or whatever you see fit.
 
 ## Filters
+#### Configuration
 Item filters are configured using the filter editor. for specific information on filters, view the [filter guide](filter.md).
+
+#### Disabling generated filters
+* **State override:** you can control individual filters if you use set filter state override in the prices tab. this will force a specific filter to be disabled/enabled, ignoring other configurations.
+
+* **Item price threshold:** *Generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish.
+
+* **Categories:** you can disable filters by categories but it can't be done using the UI yet.  
+If you want to do that you need to open up *filters.config.json* and fill *disabled_categories*.  
+Example how this looks like:
+```
+{
+    "default_fprice_override": "* 0.7",
+    "default_price_override": "* 1",
+    "disabled_categories": [
+        "divinationcards",
+        "essence",
+        "prophecy",
+        "uniqueaccessory",
+        "uniquearmour",
+        "uniqueflask",
+        "uniquejewel",
+        "uniqueweapon"
+    ],
+    "filter_price_overrides": {},
+    "filter_state_overrides": {},
+    "price_overrides": {},
+    "price_threshold": "10 chaos"
+}
+```
 
 ## File structure
 Under `cfg` directory:
