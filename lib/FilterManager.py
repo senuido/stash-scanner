@@ -434,6 +434,8 @@ class FilterManager:
         tamount, tshort = cm.priceFromString(self.price_threshold)
         min_val = cm.convert(float(tamount), tshort)
 
+        min_price = cm.compilePrice(fm.default_min_price) if self.default_min_price else None
+
         for cf in filters:
             # title = re.match('(.+) \(.+\)', fltr.title.lower()).group(1)
 
@@ -452,6 +454,9 @@ class FilterManager:
 
             cf.enabled = state
             cf.comp['price_max'] = cm.compilePrice(override, cf.comp['price_max'])
+
+            if min_price is not None:
+                cf.comp['price_min'] = cm.compilePrice(fm.default_min_price)
 
         # for override in set(self.filter_price_overrides) - used_price_overrides:
         #     msgr.send_msg('Unused filter price override: {}'.format(override), logging.WARN)

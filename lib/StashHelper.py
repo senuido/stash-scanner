@@ -70,8 +70,6 @@ def parse_stash(stash, filters, c_budget):
                 if fltr.checkItem(curItem):
                     results.append((curItem, stash, fltr))
                     break
-        # else:
-        #     print('skipped item: {}\t {}({})'.format(curItem.name, curItem.price, curItem.c_price))
     return results
 
 

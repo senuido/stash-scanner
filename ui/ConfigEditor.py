@@ -274,13 +274,13 @@ class PricesEditor(Frame):
         self.entry_budget.grid(row=0, column=3, padx=5, pady=5)
         self.var_budget.trace('w', lambda a, b, c: self.on_entry_change(self.entry_budget))
 
-        lbl = Label(frm, text='Default price override:')
+        lbl = Label(frm, text='Minimum price:')
         lbl.grid(row=0, column=4, padx=5, pady=5)
-        self.var_price_override = StringVar()
-        self.entry_price_override = TooltipEntry(frm, textvariable=self.var_price_override)
-        self.entry_price_override.bind('<FocusOut>', lambda event: self._validate_price_override_entry())
-        self.entry_price_override.grid(row=0, column=5, padx=5, pady=5)
-        self.var_price_override.trace('w', lambda a, b, c: self.on_entry_change(self.entry_price_override))
+        self.var_min_price = StringVar()
+        self.entry_min_price = TooltipEntry(frm, textvariable=self.var_min_price)
+        self.entry_min_price .bind('<FocusOut>', lambda event: self._validate_min_price_entry())
+        self.entry_min_price .grid(row=0, column=5, padx=5, pady=5)
+        self.var_min_price.trace('w', lambda a, b, c: self.on_entry_change(self.entry_min_price))
 
         lbl = Label(frm, text='Default filter override:')
         lbl.grid(row=0, column=6, padx=5, pady=5)
@@ -290,7 +290,13 @@ class PricesEditor(Frame):
         self.entry_fprice_override.grid(row=0, column=7, padx=5, pady=5)
         self.var_fprice_override.trace('w', lambda a, b, c: self.on_entry_change(self.entry_fprice_override))
 
-
+        lbl = Label(frm, text='Default item value override:')
+        lbl.grid(row=0, column=8, padx=5, pady=5)
+        self.var_price_override = StringVar()
+        self.entry_price_override = TooltipEntry(frm, textvariable=self.var_price_override)
+        self.entry_price_override.bind('<FocusOut>', lambda event: self._validate_price_override_entry())
+        self.entry_price_override.grid(row=0, column=9, padx=5, pady=5)
+        self.var_price_override.trace('w', lambda a, b, c: self.on_entry_change(self.entry_price_override))
 
         # Tree Config
         tree = self.tree
@@ -369,6 +375,9 @@ class PricesEditor(Frame):
     def _validate_budget_entry(self):
         return _validate_price(self.entry_budget, accept_empty=True)
 
+    def _validate_min_price_entry(self):
+        return _validate_price(self.entry_min_price, accept_empty=True)
+
     def _validate_price_override_entry(self):
         return _validate_price_override(self.entry_price_override, accept_empty=False)
 
@@ -390,6 +399,8 @@ class PricesEditor(Frame):
             return False
         if not self._validate_budget_entry():
             return False
+        if not self._validate_min_price_entry():
+            return False
         if not self._validate_price_override_entry():
             return False
         if not self._validate_fprice_override_entry():
@@ -406,6 +417,7 @@ class PricesEditor(Frame):
         default_price_override = self.entry_price_override.get()
         default_fprice_override = self.entry_fprice_override.get()
         budget = self.entry_budget.get()
+        min_price = self.entry_min_price.get()
 
         price_overrides = {}
         filter_price_overrides = {}
@@ -441,7 +453,7 @@ class PricesEditor(Frame):
             filter_state_overrides[key] = fm.filter_state_overrides[key]
 
         try:
-            fm.updateConfig(default_price_override, default_fprice_override, price_threshold, budget, fm.DEFAULT_MIN_PRICE,
+            fm.updateConfig(default_price_override, default_fprice_override, price_threshold, budget, min_price,
                             price_overrides, filter_price_overrides, filter_state_overrides)
         except AppException as e:
             messagebox.showerror('Validation error',
@@ -507,11 +519,13 @@ class PricesEditor(Frame):
         self.table_modified = False
         self.initial_values[self.entry_threshold] = fm.price_threshold
         self.initial_values[self.entry_budget] = fm.budget
+        self.initial_values[self.entry_min_price] = fm.default_min_price
         self.initial_values[self.entry_price_override] = fm.default_price_override
         self.initial_values[self.entry_fprice_override] = fm.default_fprice_override
 
         self.var_threshold.set(fm.price_threshold)
         self.var_budget.set(fm.budget)
+        self.var_min_price.set(fm.default_min_price)
         self.var_price_override.set(fm.default_price_override)
         self.var_fprice_override.set(fm.default_fprice_override)
 
