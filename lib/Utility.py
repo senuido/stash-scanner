@@ -89,6 +89,7 @@ class AppConfiguration:
 
         self.league = None
         self.request_delay = None
+        self.budget = None
         self.notify = None
         self.notify_copy_msg = None
         self.notification_duration = None
@@ -260,9 +261,10 @@ def round_down(num):
     return int(num)
 
 def dround(num, ndigits=2):
+    num = round(num, ndigits)
     if int(num) == num:
         return int(num)
-    return round(num, ndigits)
+    return num
 
 def tmsg(msg):
     return "{}# {}".format(time.strftime("%H:%M:%S"), msg)

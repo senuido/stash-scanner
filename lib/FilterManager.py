@@ -24,8 +24,6 @@ FILTER_INVALID_JSON = "Error decoding JSON: {} in file {}"
 FILTERS_FILE_VALIDATION_ERROR = "Error validating filters file: {}"
 FILTERS_FILE_SCHEMA_ERROR = "Filters file schema is invalid: {}"
 
-FM_INVALID_PRICE_THRESHOLD = "Invalid price threshold {}"
-
 _AUTO_FILTERS_FNAME = "tmp\\filters.auto.json"
 _USER_FILTERS_FNAME = "cfg\\filters.json"
 _USER_DEFAULT_FILTERS_FNAME = "cfg\\filters.example.json"
@@ -72,6 +70,9 @@ class FilterManager:
                         _AUTO_FILTERS_FNAME: threading.Lock()}
     config_file_lock = threading.Lock()
     UPDATE_INTERVAL = 10  # minutes
+
+    DEFAULT_BUDGET = ''
+    DEFAULT_MIN_PRICE = ''
     DEFAULT_PRICE_THRESHOLD = '10 chaos'
     DEFAULT_PRICE_OVERRIDE = '* 1'
     DEFAULT_FPRICE_OVERRIDE = '* 0.7'
@@ -87,6 +88,8 @@ class FilterManager:
 
         self.disabled_categories = []
         self.price_threshold = self.DEFAULT_PRICE_THRESHOLD
+        self.budget = self.DEFAULT_BUDGET
+        self.default_min_price = self.DEFAULT_MIN_PRICE
         self.default_price_override = self.DEFAULT_PRICE_OVERRIDE
         self.default_fprice_override = self.DEFAULT_FPRICE_OVERRIDE
         self.price_overrides = {}
@@ -111,9 +114,10 @@ class FilterManager:
                         data = json.load(f)
             except FileNotFoundError:
                 data = {}
-
             self.disabled_categories = data.get('disabled_categories', [])
             self.price_threshold = data.get('price_threshold', self.DEFAULT_PRICE_THRESHOLD)
+            self.budget = data.get('budget', self.DEFAULT_BUDGET)
+            self.default_min_price = data.get('default_min_price', self.DEFAULT_MIN_PRICE)
             self.default_price_override = data.get('default_price_override', self.DEFAULT_PRICE_OVERRIDE)
             self.default_fprice_override = data.get('default_fprice_override', self.DEFAULT_FPRICE_OVERRIDE)
             self.price_overrides = data.get('price_overrides', {})
@@ -134,9 +138,11 @@ class FilterManager:
     def saveConfig(self):
         data = {
             'disabled_categories': self.disabled_categories,
+            'price_threshold': self.price_threshold,
+            'budget': self.budget,
+            'default_min_price': self.default_min_price,
             'default_price_override': self.default_price_override,
             'default_fprice_override': self.default_fprice_override,
-            'price_threshold': self.price_threshold,
             'price_overrides': self.price_overrides,
             'filter_price_overrides': self.filter_price_overrides,
             'filter_state_overrides': self.filter_state_overrides
@@ -293,7 +299,7 @@ class FilterManager:
             msgr.send_msg('Filters passed validation.', logging.INFO)
         return valid
 
-    def updateConfig(self, default_price_override, default_fprice_override, price_threshold,
+    def updateConfig(self, default_price_override, default_fprice_override, price_threshold, budget, min_price,
                      price_overrides, filter_price_overrides, filter_state_overrides):
         with self.compile_lock:
             backup = copy.copy(self)
@@ -301,9 +307,12 @@ class FilterManager:
             self.default_price_override = default_price_override
             self.default_fprice_override = default_fprice_override
             self.price_threshold = price_threshold
+            self.budget = budget
+            self.default_min_price = min_price
             self.price_overrides = price_overrides
             self.filter_price_overrides = filter_price_overrides
             self.filter_state_overrides = filter_state_overrides
+
 
             try:
                 self.validateConfig()
@@ -312,6 +321,8 @@ class FilterManager:
                 self.default_price_override = backup.default_price_override
                 self.default_fprice_override = backup.default_fprice_override
                 self.price_threshold = price_threshold
+                self.budget = backup.budget
+                self.default_min_price = backup.default_min_price
                 self.price_overrides = backup.price_overrides
                 self.filter_price_overrides = backup.filter_price_overrides
                 self.filter_state_overrides = backup.filter_state_overrides
@@ -450,7 +461,13 @@ class FilterManager:
 
     def validateConfig(self):
         if not cm.isPriceValid(self.price_threshold):
-            raise AppException(FM_INVALID_PRICE_THRESHOLD.format(self.price_threshold))
+            raise AppException("Invalid price threshold {}".format(self.price_threshold))
+
+        if self.budget and not cm.isPriceValid(self.budget):
+            raise AppException("Invalid budget price {}".format(self.budget))
+
+        if self.default_min_price and not cm.isPriceValid(self.default_min_price):
+            raise AppException("Invalid minimum price {}".format(self.default_min_price))
 
         self.validateOverrides()
 

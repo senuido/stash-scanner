@@ -5,14 +5,16 @@ import pycurl
 import time
 from datetime import datetime
 from threading import Event
+from urllib.parse import urljoin
 
 import lib.UpdateThread as ut
 from lib.CompiledFilter import CompiledFilter
-from lib.FilterManager import FilterManager, fm
+from lib.FilterManager import fm
 from lib.ItemHelper import *
 from lib.NotifyThread import NotifyThread
+from lib.StashHelper import get_stash_price_raw, parse_next_id, parse_stashes_parallel
 from lib.StateManager import StateManager
-from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception, getBaseUrl
+from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception, getBaseUrl, dround, isAbsoluteUrl
 
 # API URLS
 NINJA_API = "http://api.poe.ninja/api/Data/GetStats"
@@ -230,7 +232,7 @@ class StashScanner:
                     break
 
                 if lastId != curId:
-                    data_count = parse_stashes_parallel(data, filters, self.league, self.stateMgr, self.handleResult, num_cores)
+                    data_count = parse_stashes_parallel(data, filters, self.league, fm.budget, self.stateMgr, self.handleResult, num_cores)
                 else:
                     parse_next_id(data, self.stateMgr)
 
@@ -342,3 +344,11 @@ class ItemResult:
 
         self.filter_name = cf.getDisplayTitle()
         self.filter_totals = cf.getDisplayTotals(item)
+
+        try:
+            val = fm.compiled_item_prices[cf.fltr.id]
+            self.profit = val - item.c_price if item.c_price is not None else None
+            self.item_value = dround(val, 1), cm.toFull('chaos')
+        except KeyError:
+            self.item_value = None
+            self.profit = None

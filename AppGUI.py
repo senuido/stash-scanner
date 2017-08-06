@@ -994,17 +994,41 @@ class AppGUI(Tk):
 
         details.highlight_tags()
 
+        ppad = ' ' * 4
         if item.price_display:
             # img_index = '{}.0'.format(int(float(details.index(END))) - 1)
             amount, currency = item.price_display
 
             details.insert(END, '\n' * 3, 'tiny')
-            details.insert(END, '{} x '.format(amount))
+            details.insert(END, 'Price:\t', 'bold')
+            if not item.item_value:
+                details.insert(END, '{} x'.format(amount))
+            else:
+                details.insert(END, '{}{} x \t'.format(ppad, amount))
             if currency in ItemDisplay.currency_images:
                 details.window_create(END, window=Label(self.txt_details, background=self.DETAILS_BG_COLOR,
                                                         image=ItemDisplay.currency_images[currency]))
             else:
                 details.insert(END, currency)
+        if item.item_value:
+            amount, currency = item.item_value
+            details.insert(END, '\nValue:\t', 'bold')
+            # details.insert(END, '{} x'.format(amount))
+            details.insert(END, '{}{} x \t'.format(ppad, amount))
+            if currency in ItemDisplay.currency_images:
+                details.window_create(END, window=Label(self.txt_details, background=self.DETAILS_BG_COLOR,
+                                                        image=ItemDisplay.currency_images[currency]))
+            else:
+                details.insert(END, currency)
+
+            if item.profit is not None:
+                # details.insert(END, '\n\t' + '-' * 20 + '\n', 'tiny')
+                details.insert(END, '\n\t', 'tiny')
+                details.insert(END, ppad)
+                details.insert(END, '-'*21, 'tiny')
+                # details.insert(END, ppad + '-'*15)
+                details.insert(END, '\n', 'tiny')
+                details.insert(END, '\t{}{}c'.format(ppad, dround(item.profit)))
 
         if item.filter_name:
             details.insert(END, '\n' * 2, 'tiny')
