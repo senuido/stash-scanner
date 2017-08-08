@@ -168,6 +168,35 @@ class FilterManager:
         try:
             filter_ids = []
             filters = []
+
+            def name_to_id(name):
+                return '_' + name.lower().replace(' ', '_')
+
+            def get_unique_id(title, name, category):
+                title_id = name_to_id(title)
+                if title_id not in filter_ids:
+                    return title_id
+
+                name_id = name_to_id(name)
+                if name_id not in filter_ids:
+                    # print('id {} was taken, using name id {} instead'.format(title_id, name_id))
+                    return name_id
+
+                category_id = name_to_id(title + ' ' + category)
+                if category_id not in filter_ids:
+                    # print('id {} was taken, using category id {} instead'.format(title_id, category_id))
+                    return category_id
+
+                id = title_id
+                n = 2
+                while id in filter_ids:
+                    id = '{}{}'.format(title_id, n)
+                    n += 1
+                # if n > 2:
+                #     print('id {} was taken, using {} instead'.format(title_id, id))
+
+                return id
+
             c = pycurl.Curl()
             for url in _URLS:
                 furl = url.format(config.league)
@@ -182,7 +211,11 @@ class FilterManager:
                         crit = {}
                         # crit['price_max'] = "{} exalted".format(float(item.get('exaltedValue', 0)))
                         crit['price_max'] = "{} chaos".format(float(item.get('chaosValue', 0)))
-                        crit['name'] = [item['name'].lower()]
+                        base = item['baseType'] if category not in ('essence', ) else None
+                        name = item['name']
+                        if base:
+                            name += ' ' + base
+                        crit['name'] = ['"{}"'.format(name)]
                         crit['type'] = [_ITEM_TYPE[item['itemClass']]]
                         crit['buyout'] = True
 
@@ -191,17 +224,8 @@ class FilterManager:
                             item['name'],
                             item['variant'] if item['variant'] is not None else '').strip()
 
-                        # find a unique id
-                        base_id = '_' + title.lower().replace(' ', '_')
-                        id = base_id
-                        n = 2
-                        while id in filter_ids:
-                            id = '{}{}'.format(base_id, n)
-                            n += 1
-
+                        id = get_unique_id(title, name, category)
                         filter_ids.append(id)
-                        # if n > 2:
-                        #     print('base_id {} was taken, using {} instead'.format(base_id, id))
 
                         fltr = Filter(title, crit, False, category, id=id)
 

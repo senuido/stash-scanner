@@ -581,6 +581,7 @@ class AppGUI(Tk):
         self.txt_details.tag_configure('bold', font=font_bold)
         self.txt_details.tag_configure('italic', font=font_italic)
         self.txt_details.tag_configure('unid', foreground=self.UNID_COLOR, font=font_bold)
+        self.txt_details.tag_configure('red', font=font_default, foreground='red')
         self.txt_details.tag_configure('tiny', foreground=self.REQ_COLOR, font=font_tiny)
         self.txt_details.tag_configure('justified', justify=CENTER)
 
@@ -1028,7 +1029,9 @@ class AppGUI(Tk):
                 details.insert(END, '-'*21, 'tiny')
                 # details.insert(END, ppad + '-'*15)
                 details.insert(END, '\n', 'tiny')
-                details.insert(END, '\t{}{}c'.format(ppad, dround(item.profit)))
+
+                profit_tag = '' if item.profit > 0 else 'red'
+                details.insert(END, '\t{}{}c'.format(ppad, dround(item.profit)), profit_tag)
 
         if item.filter_name:
             details.insert(END, '\n' * 2, 'tiny')

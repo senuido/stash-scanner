@@ -85,6 +85,16 @@ class CompiledFilter:
 
         return title
 
+    def _checkNames(self, c_name, names):
+        for name in names:
+            if name.startswith('"') and name.endswith('"'):
+                if name[1:-1] == c_name:
+                    return True
+            elif name in c_name:
+                return True
+
+        return False
+
     def checkItem(self, item):
         for key in self.crit_ordered:
             if key == "type":
@@ -97,7 +107,9 @@ class CompiledFilter:
                 if item.c_price is not None and item.c_price > self.comp[key]:
                         return False
             elif key == "name":
-                if not any(name in item.c_name for name in self.comp[key]):
+                # if not any(name in item.c_name for name in self.comp[key]):
+                #     return False
+                if not self._checkNames(item.c_name, self.comp[key]):
                     return False
             elif key == "base":
                 if self.comp[key] not in item.base:

@@ -23,6 +23,9 @@ class StateManager:
 
         # self.loadState()
 
+    def itemExists(self, id):
+        return id in self.items
+
     def addItem(self, id, price, acc):
         b_update = False
         if id not in self.items:
