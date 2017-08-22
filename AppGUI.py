@@ -1,6 +1,8 @@
 import functools
 import logging
+import multiprocessing
 import os
+import pycurl
 import queue
 import threading
 import tkinter.font as tkfont
@@ -15,25 +17,21 @@ from tkinter.ttk import *
 
 import PIL.Image
 import PIL.ImageTk
-import pycurl
 
-import multiprocessing
-
-from lib.ItemFilter import Filter
 from lib.CurrencyManager import CurrencyInfo, cm, CurrencyManager
-from lib.FilterManager import FiltersInfo, fm, FILTERS_CFG_FNAME, FilterManager
+from lib.FilterManager import FiltersInfo, fm, FILTERS_CFG_FNAME
+from lib.ItemCollection import ItemCollection
+from lib.ItemFilter import Filter
 from lib.ItemHelper import ItemType, PropDisplayMode, ItemSocketType
+from lib.ModsHelper import mod_helper
 from lib.StashScanner import StashScanner, ItemResult
 from lib.Utility import MsgType, msgr, getDataFromUrl, round_up, AppException, getJsonFromURL, config, AppConfiguration, \
     logexception, dround
 from ui.ConfigEditor import ConfigEditor
 from ui.FilterEditor import FilterEditor
 from ui.LoadingScreen import LoadingScreen
-from ui.ModsHelper import mod_helper
 from ui.ScrollingFrame import AutoScrollbar
-
-logger = logging.getLogger('ui')
-
+from ui.TextButton import TextButton
 
 class AppGUI(Tk):
 
@@ -63,6 +61,7 @@ class AppGUI(Tk):
     CRAFTED_BGCOLOR = '#0060BF'
     CRAFTED_COLOR = '#fff'
     REQ_COLOR = '#999'
+    WARNING_COLOR = '#c35b5b'
     MATCHES_COLOR = '#999'
     UNID_COLOR = '#C22626'
     PROP_COLOR = '#e6e6e6'
@@ -93,6 +92,19 @@ class AppGUI(Tk):
 
     TT_SWHITE_COLOR = '#fff'
 
+    # BUTTON_BGCOLOR = '#232420'
+    # BUTTON_HOVER_BGCOLOR = '#090908'
+    # BUTTON_BGCOLOR = '#494949'
+    # BUTTON_HOVER_BGCOLOR = '#313131'
+
+    # BUTTON_BGCOLOR = '#313131'
+    # BUTTON_HOVER_BGCOLOR = '#090908'
+
+    BUTTON_BGCOLOR = '#333333'
+    BUTTON_HOVER_BGCOLOR = '#161616'
+
+    BUTTON_FOREGROUND = '#fff'
+
     type_tags = {
         ItemType.Normal: 'name-normal',
         ItemType.Magic: 'name-magic',
@@ -106,7 +118,7 @@ class AppGUI(Tk):
         ItemType.Relic: 'name-relic'
     }
 
-    VERSION_NUMBER = 'v1.01'
+    VERSION_NUMBER = 'v1.04'
     VERSION_URL = 'https://github.com/senuido/stash-scanner/raw/master/files/latest'
     RELEASES_URL = 'https://github.com/senuido/stash-scanner/releases/latest'
     VERSION_TEXT = 'Stash Scanner {}'.format(VERSION_NUMBER)
@@ -136,20 +148,16 @@ class AppGUI(Tk):
 
         s = Style()
         # print(s.theme_names())
-        s.theme_use('vista')
+        # s.theme_use('vista')
 
         self.title("Stash Scanner by Senu {}".format(self.VERSION_NUMBER))
-        self.geometry("1366x768")
-        self.create_widgets()
-        self.center()
-
-        self.deiconify()
-        self.wait_visibility()
 
         try:
             self.iconbitmap(default='res\\app.ico')
             ItemDisplay.init()
             Filter.init()
+            ItemCollection.init()
+            mod_helper.init()
         except AppException as e:
             messagebox.showerror('Resource error', e, parent=self)
         else:
@@ -165,6 +173,15 @@ class AppGUI(Tk):
 
             # self.start_scan()
             self.initialized = True
+
+        self.geometry("1366x768")
+        self.create_widgets()
+        self.center()
+
+        self.deiconify()
+        self.wait_visibility()
+
+        self.state('zoomed')
 
     def _check_version(self):
         try:
@@ -430,7 +447,7 @@ class AppGUI(Tk):
         self.frm_console.columnconfigure(1, weight=1)
         self.frm_console.rowconfigure(0, weight=1)
 
-        self.lst_msgs = Listbox(self.frm_console, background=self.BG_COLOR, selectmode=SINGLE)
+        self.lst_msgs = Listbox(self.frm_console, background=self.BG_COLOR, selectmode=SINGLE, activestyle=NONE)
         self.lst_msgs.bind('<<ListboxSelect>>', self.lst_selected)
         self.lst_msgs.grid(row=0, column=1, sticky='nsew')
 
@@ -486,6 +503,7 @@ class AppGUI(Tk):
         style.configure('Borderless.TFrame', padding=0, borderwidth=0)
         style.configure('Borderless.TLabelframe', padding=0, borderwidth=0)
         style.configure('Dark.Borderless.TFrame', background=self.DETAILS_BG_COLOR)
+        style.configure('Dark.TLabel', background=self.DETAILS_BG_COLOR, foreground=self.DEFAULT_COLOR)
 
         # ui_style.configure('Default.TEntry', background='white', highlightbackground="#bebebe", highlightthickness=1, bd=1)
         style.configure('Default.TEntry', padding=1)
@@ -507,24 +525,9 @@ class AppGUI(Tk):
         self.frm_details = Frame(self.pane_wnd, name='frm_details', style='My.TFrame')
         self.frm_details.configure(padding=(30, 20))
         self.frm_details.grid_configure(row=0, sticky='nsew')
-        self.frm_details.columnconfigure(2, weight=1, minsize=100)
+        self.frm_details.columnconfigure(0, weight=1, minsize=100)
         self.frm_details.rowconfigure(1, weight=1)
         # self.frm_details.grid_propagate(False)
-
-        self.txt_details = ReadOnlyText(self.frm_details, background=self.DETAILS_BG_COLOR, foreground=self.DEFAULT_COLOR,
-                                        name='txt_details', borderwidth=0) #, tabstyle='wordprocessor')
-
-        # self.txt_details.config(width=100)
-
-        self.txt_details.grid(row=0, column=2, rowspan=2, sticky='nsew')
-
-        # self.lbl_details_filler2 = Frame(self.frm_details, style='Borderless.TFrame')
-        # self.lbl_details_filler2.grid(row=0, column=3, rowspan=2, sticky='nsew')
-
-        self.frm_details_img = Frame(self.frm_details, style='Dark.Borderless.TFrame')
-        self.lbl_details_img = Label(self.frm_details_img, background=self.DETAILS_BG_COLOR, borderwidth=0)
-        self.lbl_details_img.grid(sticky='ne')
-        self.frm_details_img.grid(row=0, column=4, sticky='nsew')
 
         self.pane_wnd.add(self.frm_details)
         self.pane_wnd.forget(self.frm_details)
@@ -538,12 +541,88 @@ class AppGUI(Tk):
         font_tag_big = self.addfont(tkfont.Font(name='DetailsTagBig', family=font_fam, size=12, weight=tkfont.BOLD))
         font_tag = self.addfont(tkfont.Font(name='DetailsTag', family=font_fam, size=9, weight=tkfont.BOLD))
         font_subtext = self.addfont(tkfont.Font(name='DetailsSubtext', family=font_fam, size=8))
+        font_subtext_min = self.addfont(tkfont.Font(name='DetailsSubtextMin', family=font_fam, size=7))
+        font_subtext_bold = self.addfont(tkfont.Font(name='DetailsSubtextBold', family=font_fam, size=8, weight=tkfont.BOLD))
         font_underline = self.addfont(tkfont.Font(name='DetailsUnderline', family=font_fam, size=9, underline=True))
         font_tiny = self.addfont(tkfont.Font(name='DetailsTiny', family=font_fam, size=5))
         font_italic = self.addfont(tkfont.Font(name='DetailsItalic', family=font_fam, slant=tkfont.ITALIC, size=9))
         font_bold_italic = self.addfont(tkfont.Font(name='DetailsBoldItalic', family=font_fam, weight=tkfont.BOLD, slant=tkfont.ITALIC, size=9))
 
         self.addfont(tkfont.Font(name='TreeDefault'))
+
+        self.txt_details = ReadOnlyText(self.frm_details, background=self.DETAILS_BG_COLOR,
+                                        foreground=self.DEFAULT_COLOR,
+                                        name='txt_details', borderwidth=0)  # , tabstyle='wordprocessor')
+
+        # self.txt_details.config(width=100)
+
+        self.txt_details.grid(row=1, column=0, sticky='nsew')
+
+        # self.lbl_details_filler2 = Frame(self.frm_details, style='Borderless.TFrame')
+        # self.lbl_details_filler2.grid(row=0, column=3, rowspan=2, sticky='nsew')
+
+        self.frm_details_img = Frame(self.frm_details, style='Dark.Borderless.TFrame')
+        self.lbl_details_img = Label(self.frm_details_img, background=self.DETAILS_BG_COLOR, borderwidth=0, anchor=CENTER)
+        self.lbl_details_img.grid(sticky='nsew')
+        self.frm_details_img.grid(row=1, column=1, sticky='nsew')
+        # self.frm_details_btns = Frame(self.frm_details, style='Dark.Borderless.TFrame')
+        # self.frm_details_btns.grid(row=2, column=1, columnspan=1, sticky='ne', pady=5)
+        self.frm_details_btns = Frame(self.frm_details_img, style='Dark.Borderless.TFrame')
+        self.frm_details_btns.grid(row=1, column=0, columnspan=1, sticky='ne', pady=15)
+
+        self.btn_filter_search = TextButton(self.frm_details_btns, padx=5, pady=3, font=self.app_fonts['DetailsBold'],
+                                            highlightthickness=2,
+                                            background=self.BUTTON_BGCOLOR, foreground=self.BUTTON_FOREGROUND,
+                                            borderwidth=1,
+                                            activebackground=self.BUTTON_HOVER_BGCOLOR,
+                                            activeforeground=self.BUTTON_FOREGROUND,
+                                            compound=LEFT, image=ItemDisplay.search_icon, relief=RAISED, text='Filter Search')
+
+        self.btn_item_search = TextButton(self.frm_details_btns, padx=5, pady=3, font=self.app_fonts['DetailsBold'],
+                                          highlightthickness=2,
+                                          background=self.BUTTON_BGCOLOR, foreground=self.BUTTON_FOREGROUND,
+                                          borderwidth=1,
+                                          activebackground=self.BUTTON_HOVER_BGCOLOR,
+                                          activeforeground=self.BUTTON_FOREGROUND,
+                                          compound=LEFT, image=ItemDisplay.search_icon, relief=RAISED,
+                                          text='Item Search')
+
+        self.bind('<Control-q>', self.openFilterSearch)
+        self.bind('<Control-w>', self.openItemSearch)
+
+        self.btn_filter_search.grid(row=0, column=0, sticky='nsew')
+        lbl = Label(self.frm_details_btns, font=font_subtext_min, text='(Ctrl + Q)', style='Dark.TLabel')
+        lbl.grid(row=1, column=0, sticky='n', pady=(0, 0))
+        self.btn_item_search.grid(row=2, column=0, pady=(5, 0), sticky='nsew')
+        lbl = Label(self.frm_details_btns, font=font_subtext_min, text='(Ctrl + W)', style='Dark.TLabel')
+        lbl.grid(row=3, column=0, sticky='n', pady=(0, 0), )
+
+        # self.frm_details_img = Frame(self.frm_details, style='Dark.Borderless.TFrame')
+        # self.lbl_details_img = Label(self.frm_details_img, background=self.DETAILS_BG_COLOR, borderwidth=0)
+        # self.lbl_details_img.grid(sticky='ne')
+        # self.frm_details_img.grid(row=1, column=1, sticky='nsew')
+        # self.frm_details_btns = Frame(self.frm_details, style='Dark.Borderless.TFrame')
+        # self.frm_details_btns.grid(row=2, column=1, columnspan=1, sticky='ne', pady=5)
+        #
+        # self.btn_filter_search = TextButton(self.frm_details_btns, padx=5, pady=3, font=self.app_fonts['DetailsBold'],
+        #                                     highlightthickness=2,
+        #                                     background=self.BUTTON_BGCOLOR, foreground=self.BUTTON_FOREGROUND,
+        #                                     borderwidth=1,
+        #                                     activebackground=self.BUTTON_HOVER_BGCOLOR,
+        #                                     activeforeground=self.BUTTON_FOREGROUND,
+        #                                     compound=LEFT, image=ItemDisplay.search_icon, relief=RAISED, text='Search')
+        #
+        # self.btn_item_search = TextButton(self.frm_details_btns, padx=5, pady=3, font=self.app_fonts['DetailsBold'],
+        #                                   highlightthickness=2,
+        #                                   background=self.BUTTON_BGCOLOR, foreground=self.BUTTON_FOREGROUND,
+        #                                   borderwidth=1,
+        #                                   activebackground=self.BUTTON_HOVER_BGCOLOR,
+        #                                   activeforeground=self.BUTTON_FOREGROUND,
+        #                                   compound=LEFT, image=ItemDisplay.search_icon, relief=RAISED,
+        #                                   text='Item Search')
+        #
+        # self.btn_filter_search.grid(row=0, column=0)
+        # self.btn_item_search.grid(row=1, column=0, padx=0)
 
         self.txt_details.configure(font=font_default)
 
@@ -577,6 +656,7 @@ class AppGUI(Tk):
         self.txt_details.tag_configure('enhanced', font=font_default, foreground=self.ENHANCED_COLOR)
         self.txt_details.tag_configure('prop', font=font_bold, foreground=self.PROP_COLOR)
         self.txt_details.tag_configure('requirement', foreground=self.REQ_COLOR, font=font_subtext)
+        self.txt_details.tag_configure('requirement-warning', foreground=self.WARNING_COLOR, font=font_subtext_bold)
         self.txt_details.tag_configure('totals', foreground=self.MATCHES_COLOR)
         self.txt_details.tag_configure('bold', font=font_bold)
         self.txt_details.tag_configure('italic', font=font_italic)
@@ -685,6 +765,18 @@ class AppGUI(Tk):
     def set_msglevel(self, event):
         self.msg_level = logging._nameToLevel[self.cmb_msglevel.get().upper()]
 
+    def openFilterSearch(self, event):
+        if self.last_index:
+            obj = self.msg_tags.get(self.last_index)
+            if isinstance(obj, ItemDisplay):
+                obj.openFilterSearch()
+
+    def openItemSearch(self, event):
+        if self.last_index:
+            obj = self.msg_tags.get(self.last_index)
+            if isinstance(obj, ItemDisplay):
+                obj.openItemSearch()
+
     def lst_selected(self, event):
         w = event.widget
         if not w.curselection():
@@ -733,6 +825,7 @@ class AppGUI(Tk):
             return
 
         self.clear_details()
+        self.frm_details_btns.grid_remove()
         details = self.txt_details
 
         details.configure(padx=10)
@@ -771,6 +864,7 @@ class AppGUI(Tk):
             return
 
         self.clear_details()
+        self.frm_details_btns.grid_remove()
         details = self.txt_details
 
         details.configure(padx=20)
@@ -844,7 +938,16 @@ class AppGUI(Tk):
             reqs += 'ilvl: {}'.format(item.ilvl)
 
         if reqs:
-            details.insert(END, reqs+'\n', 'requirement')
+            details.insert(END, reqs, 'requirement')
+
+        if item.type_max_sockets >= 3 and not item.mirrored and not item.corrupted \
+                and item.name not in ItemCollection.SIX_LINK_EXCEPTIONS:
+            tag = 'requirement-warning' if item.max_sockets < item.type_max_sockets else 'requirement'
+            if reqs:
+                details.insert(END, ' - ', 'requirement')
+            details.insert(END, 'Max sockets: {} ({})\n'.format(item.max_sockets, item.type_max_sockets), tag)
+        else:
+            details.insert(END, '\n', 'requirement')
 
         details.insert(END, '\n', 'tiny')
 
@@ -1055,6 +1158,17 @@ class AppGUI(Tk):
         if item.sockets:
             self.lbl_details_img.bind('<Enter>', functools.partial(self.update_details_img, img=obj.image))
             self.lbl_details_img.bind('<Leave>', functools.partial(self.update_details_img, img=obj.image_overlay))
+
+        # lbl = Label(self.txt_details, background=self.BUTTON_BGCOLOR, relief=RAISED, foreground=self.BUTTON_FOREGROUND,
+        #             padding=5,
+        #             text='Search', font=self.app_fonts['DetailsTagBig'])
+        # lbl.bind('<1>', obj.openSearch)
+        # # lbl.bind('<Enter>', functools.partial(lbl.config, background=self.BUTTON_HOVER_BGCOLOR))
+        # # lbl.bind('<Leave>', functools.partial(lbl.config, background=self.BUTTON_BGCOLOR))
+
+        self.btn_filter_search.config(command=obj.openFilterSearch)
+        self.btn_item_search.config(command=obj.openItemSearch)
+        self.frm_details_btns.grid()
 
         txt_size = details.update_size(self.app_fonts['DetailsDefault'], self.app_fonts['DetailsTitle'])
         self.update_details_pane_size(txt_size)
@@ -1267,7 +1381,8 @@ class ReadOnlyText(Text):
 
         # for line in txt.expandtabs(int(AppGUI.TK_TABWIDTH)).split('\n'):
         # for line in tw.fill(txt).split('\n'):
-        for line in self.get("1.0", END).split("\n"):
+        lines = self.get("1.0", END).split("\n")
+        for line in lines:
             if not found_title and len(line):
                 title_width = round_up(font_title.measure(line) / font_default.measure(line) * len(line) + 1)
                 # print('title: {}, width: {}'.format(line, title_width))
@@ -1304,7 +1419,10 @@ class ReadOnlyText(Text):
         width = max(30, width)
         width = min(width, 75)
         # width = min(width, 600 / font_default.measure('a'))
+        # height = max(self.winfo_reqheight(), )
         self.config(width=width)
+        # self.config(height=self.winfo_reqheight())
+
         return font_default.measure('a' * round(width))
 
     def is_line_empty(self, index='end-1c'):
@@ -1327,6 +1445,7 @@ class ItemDisplay:
             cls.white = PIL.Image.open('res\\gen.png')
             cls.link_vertical = PIL.Image.open('res\\link_vertical.png')
             cls.link_horizontal = PIL.Image.open('res\\link_horizontal.png')
+            cls.search_icon = PIL.ImageTk.PhotoImage(file="res\\search-icon.ico")
 
             image_path = 'res\\currency'
 
@@ -1335,7 +1454,7 @@ class ItemDisplay:
                               f.endswith('.png') and os.path.isfile(os.path.join(image_path, f))]
 
                 for fname in image_list:
-                    img = PIL.Image.open(os.path.join(image_path, fname)).resize((24,24), PIL.Image.ANTIALIAS)
+                    img = PIL.Image.open(os.path.join(image_path, fname)).resize((24, 24), PIL.Image.ANTIALIAS)
                     cls.currency_images[os.path.splitext(fname)[0]] = PIL.ImageTk.PhotoImage(img)
 
             cls.s_height = cls.red.width
@@ -1469,8 +1588,44 @@ class ItemDisplay:
 
         self.image_overlay = PIL.ImageTk.PhotoImage(base_img)
 
+    def openFilterSearch(self):
+        self.openSearch(self.item.filter_params)
+
+    def openItemSearch(self):
+        self.openSearch(self.item.item_params)
+
+    def openSearch(self, params=None):
+        form = self.getRequestFormString(params)
+        temp_file = 'tmp\\search.htm'
+        with open(temp_file, 'w') as f:
+            f.write(form)
+            f.flush()
+
+        webbrowser.open(temp_file)
+
+    def getRequestFormString(self, params=None):
+        if params is None:
+            params = self.item.filter_params
+        #encode values?
+        params_str = str([list(param) for param in params])
+        return """
+        <html>
+        <head>
+        <script src="..\\res\\postForm.js" type="text/javascript"></script>
+        </head>
+        <body bgcolor="black">
+            <script>
+                window.addEventListener("DOMContentLoaded", function() {{
+                   post('http://poe.trade/search', {});
+                }}, false);
+            </script>
+        </body>
+        </html>
+        """.format(params_str)
+
 if __name__ == "__main__":
     multiprocessing.freeze_support()
+    logger = logging.getLogger('ui')
     app = AppGUI()
 
     if app.initialized:

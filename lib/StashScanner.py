@@ -4,6 +4,8 @@ import os
 import pycurl
 import time
 from datetime import datetime
+from itertools import chain
+from multiprocessing.pool import Pool
 from threading import Event
 from urllib.parse import urljoin
 
@@ -11,10 +13,17 @@ import lib.UpdateThread as ut
 from lib.CompiledFilter import CompiledFilter
 from lib.FilterManager import fm
 from lib.ItemHelper import *
+from lib.ModFilterGroup import FilterGroupType
+from lib.ModsHelper import mod_helper
 from lib.NotifyThread import NotifyThread
+from lib.SearchParams import SearchParams
 from lib.StashHelper import get_stash_price_raw, parse_next_id, parse_stashes_parallel
 from lib.StateManager import StateManager
-from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception, getBaseUrl, dround, isAbsoluteUrl
+from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception, getBaseUrl, dround, isAbsoluteUrl, \
+    RE_COMPILED_TYPE
+
+# import pstats
+# from io import StringIO
 
 # API URLS
 NINJA_API = "http://api.poe.ninja/api/Data/GetStats"
@@ -72,12 +81,15 @@ class StashScanner:
         except Exception as e:
             msgr.send_msg("Fatal unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
             logexception()
-
-        self.notifier.close()
-        self.stateMgr.close()
-        msgr.send_msg("Scanning stopped")
-        msgr.send_stopped()
-        # self._stopped.set()
+        except BaseException as e:
+            msgr.send_msg('Unexpected exception: {}. Error details logged to file.'.format(e), logging.ERROR)
+            logexception()
+        finally:
+            self.notifier.close()
+            self.stateMgr.close()
+            msgr.send_msg("Scanning stopped")
+            msgr.send_stopped()
+            # self._stopped.set()
 
     def scan(self):
         msgr.send_msg("Scan initializing..")
@@ -152,26 +164,36 @@ class StashScanner:
         if not len(filters):
             raise AppException("No filters are active. Stopping..")
 
-        # msgr.send_msg("{} filters were loaded. {} filters are active."
-        #               .format(len(fm.getFilters()), len(filters)))
-        #
-        # for fltr in filters:
-        #     msgr.send_msg(fltr)
-
-        # INITIAL CHANGE ID
-        lastId = ""
         self.stateMgr.loadState()
-
         if self.stateMgr.getChangeId() == "" or str(config.scan_mode).lower() == "latest":
             msgr.send_msg("Fetching latest id from API..")
-            data = getJsonFromURL(NINJA_API, max_attempts=3)
-            if data is None:
-                raise AppException("Error retrieving latest id from API, bad response")
 
-            if ninja_api_nextid_field not in data:
-                raise AppException("Error retrieving latest id from API, missing {} key".format(ninja_api_nextid_field))
+            latest_id = None
+            failed_attempts = 0
+            sleep_time = 0
 
-            self.stateMgr.saveState(data[ninja_api_nextid_field])
+            while not self._stop.wait(sleep_time) and not latest_id:
+                try:
+                    data = getJsonFromURL(NINJA_API)
+                    if data is None:
+                        msgr.send_msg("Error retrieving latest id from API, bad response", logging.WARN)
+                    elif ninja_api_nextid_field not in data:
+                        raise AppException(
+                            "Error retrieving latest id from API, missing {} key".format(ninja_api_nextid_field))
+                    else:
+                        latest_id = data[ninja_api_nextid_field]
+                        break
+                except pycurl.error as e:
+                    errno, msg = e.args
+                    msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
+                finally:
+                    failed_attempts += 1
+                    sleep_time = min(2 ** failed_attempts, 30)
+
+            if latest_id:
+                self.stateMgr.saveState(latest_id)
+            else:
+                raise AppException("Failed retrieving latest ID from API", logging.ERROR)
 
         stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
 
@@ -180,97 +202,117 @@ class StashScanner:
         self.notifier.start()
 
         c = pycurl.Curl()
+        lastId = ""
         ahead = False
         data = ""
         last_req = 0
         delay_time = 0
-        num_cores = os.cpu_count()
+        num_cores = os.cpu_count() or 1
         failed_attempts = 0
 
         def get_sleep_time():
             if failed_attempts:
                 sleep_time = max(min(2 ** failed_attempts, 30), config.request_delay - time.time() + last_req)
+                msgr.send_msg('Retrying in {} seconds..'.format(sleep_time), logging.DEBUG)
             else:
                 sleep_time = delay_time
 
             return sleep_time
 
+        # pr = cProfile.Profile()
+        # pr.enable()
+
         msgr.send_msg("Scanning started")
-        while not self._stop.wait(get_sleep_time()):
-            try:
-                msgr.send_update_id(self.stateMgr.getChangeId())
-                data_count = (0, 0, 0)
+        with Pool(processes=num_cores) as pool:
+            while not self._stop.wait(get_sleep_time()):
+                try:
+                    msgr.send_update_id(self.stateMgr.getChangeId())
+                    data_count = (0, 0, 0)
 
-                last_req = time.time()
-                data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
-                dl_time = time.time() - last_req
+                    last_req = time.time()
+                    data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
+                    dl_time = time.time() - last_req
 
-                if data is None:
-                    msgr.send_tmsg("Invalid response while retrieving stash data.", logging.ERROR)
-                    # sleep_time = 2
-                    failed_attempts += 1
-                    continue
+                    if data is None:
+                        msgr.send_tmsg("Invalid response while retrieving stash data.", logging.ERROR)
+                        # sleep_time = 2
+                        failed_attempts += 1
+                        continue
 
-                if "error" in data:
-                    msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
-                    # c.close()
+                    if "error" in data:
+                        msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
+                        # c.close()
+                        c = pycurl.Curl()
+                        # sleep_time = 10
+                        failed_attempts += 1
+                        continue
+
+                    # Process if its the first time we're in this id
+                    curId = self.stateMgr.getChangeId()
+
+                    last_parse = time.time()
+
+                    if lastId != curId:
+                        # snapshot filters and currency information
+                        with cm.compile_lock:
+                            filters = fm.getActiveFilters()
+                            c_budget = cm.compilePrice(fm.budget) if fm.budget else None
+                            ccm = cm.toCCM()
+
+                        if not len(filters):
+                            msgr.send_msg("No filters are active. Stopping..")
+                            # self._stop.set()
+                            # continue
+                            break
+
+                        # pr.enable()
+                        data_count = parse_stashes_parallel(data, filters, ccm, self.league, c_budget, self.stateMgr, self.handleResult, num_cores, pool)
+                        # pr.disable()
+                    else:
+                        parse_next_id(data, self.stateMgr)
+
+                        if not ahead:
+                            msgr.send_msg("Reached the end of the river..", logging.INFO)
+                            ahead = True
+
+                    lastId = curId
+                    stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
+
+                    parse_time = time.time() - last_parse
+
+                    delta = time.time() - last_req
+                    delay_time = max(float(config.request_delay) - delta, 0)
+                    msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s, "
+                                  "Tabs: {}, League tabs: {}, Items: {}"
+                                  .format(delta, dl_time, parse_time, delay_time, *data_count), logging.DEBUG)
+
+                    failed_attempts = 0
+
+                except pycurl.error as e:
+                    errno, msg = e.args
+                    msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
+                    c.close()
                     c = pycurl.Curl()
-                    # sleep_time = 10
+                    # sleep_time = 5
                     failed_attempts += 1
                     continue
+                except Exception as e:
+                    msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
+                    logexception()
+                    with open(JSON_ERROR_FNAME, "w") as f:
+                        json.dump(data, f, indent=4, separators=(',', ': '))
 
-                # Process if its the first time we're in this id
-                curId = self.stateMgr.getChangeId()
+                    c.close()
+                    c = pycurl.Curl()
+                    failed_attempts += 1
+                    # sleep_time = 10
 
-                last_parse = time.time()
-                filters = fm.getActiveFilters()
-
-                if not len(filters):
-                    msgr.send_msg("No filters are active. Stopping..")
-                    # self._stop.set()
-                    # continue
-                    break
-
-                if lastId != curId:
-                    data_count = parse_stashes_parallel(data, filters, self.league, fm.budget, self.stateMgr, self.handleResult, num_cores)
-                else:
-                    parse_next_id(data, self.stateMgr)
-
-                    if not ahead:
-                        msgr.send_msg("Reached the end of the river..", logging.INFO)
-                        ahead = True
-
-                lastId = curId
-                stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
-
-                parse_time = time.time() - last_parse
-
-                delta = time.time() - last_req
-                delay_time = max(float(config.request_delay) - delta, 0)
-                msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s, "
-                              "Tabs: {}, League tabs: {}, Items: {}"
-                              .format(delta, dl_time, parse_time, delay_time, *data_count), logging.DEBUG)
-
-                failed_attempts = 0
-
-            except pycurl.error as e:
-                errno, msg = e.args
-                msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
-                c.close()
-                c = pycurl.Curl()
-                # sleep_time = 5
-                failed_attempts += 1
-                continue
-            except Exception as e:
-                msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
-                logexception()
-                with open(JSON_ERROR_FNAME, "w") as f:
-                    json.dump(data, f, indent=4, separators=(',', ': '))
-
-                c.close()
-                c = pycurl.Curl()
-                failed_attempts += 1
-                # sleep_time = 10
+        # pr.disable()
+        # s = StringIO()
+        # sortby = 'cumulative'
+        # ps = pstats.Stats(pr, stream=s).strip_dirs().sort_stats(sortby)
+        # ps.print_stats()
+        # print(s.getvalue())
 
     @staticmethod
     def clearLeagueData():
@@ -325,6 +367,8 @@ class ItemResult:
         self.block = item.block
         self.crit = item.crit
 
+        self.max_sockets = item.get_max_sockets()
+        self.type_max_sockets = item.get_type_max_sockets()
         self.sockets = [ItemSocket(socket) for socket in item.sockets]
         self.links_string = item.get_item_links_string()
         self.requirements = [ItemProperty(prop) for prop in item.requirements]
@@ -332,6 +376,9 @@ class ItemResult:
         self.raw_price = item.get_price_raw(get_stash_price_raw(stash))
         self.price_display = item.get_item_price_display()
         self.whisper_msg = item.get_whisper_msg(stash)
+
+        self.filter_params = SearchParams.genFilterSearch(item, cf).convert()
+        self.item_params = SearchParams.genItemSearch(item, cf).convert()
 
         self.x = item.x
         self.y = item.y

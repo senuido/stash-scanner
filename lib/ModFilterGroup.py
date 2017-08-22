@@ -93,7 +93,6 @@ class FilterGroupType(Enum):
     Count = "count"
     Nothing = "none"
 
-
 class FilterGroupFactory:
     @staticmethod
     def create(fg_type, data):
@@ -237,10 +236,16 @@ PSEUDO_MODS = {
     '(total) +# to Strength': None,
     '(total) +# to maximum Life': None,
 
-    '(total) #% increased Elemental Damage with Weapons': ('([0-9]+)% increased Elemental Damage(?: with Weapons)?$', ),
-    '(total) #% increased Cold Damage with Weapons': ('([0-9]+)% increased (?:Elemental|Cold) Damage(?: with Weapons)?$', ),
-    '(total) #% increased Fire Damage with Weapons': ('([0-9]+)% increased (?:Elemental|Fire) Damage(?: with Weapons)?$', ),
-    '(total) #% increased Lightning Damage with Weapons': ('([0-9]+)% increased (?:Elemental|Lightning) Damage(?: with Weapons)?$', ),
+    # '(total) #% increased Elemental Damage with Weapons': ('([0-9]+)% increased Elemental Damage(?: with Weapons)?$', ),
+    # '(total) #% increased Cold Damage with Weapons': ('([0-9]+)% increased (?:Elemental|Cold) Damage(?: with Weapons)?$', ),
+    # '(total) #% increased Fire Damage with Weapons': ('([0-9]+)% increased (?:Elemental|Fire) Damage(?: with Weapons)?$', ),
+    # '(total) #% increased Lightning Damage with Weapons': ('([0-9]+)% increased (?:Elemental|Lightning) Damage(?: with Weapons)?$', ),
+
+    '(total) #% increased Elemental Damage with Attack Skills': ('([0-9]+)% increased Elemental Damage(?: with Attack Skills)?$', ),
+    '(total) #% increased Cold Damage with Attack Skills': ('([0-9]+)% increased (?:Elemental|Cold) Damage(?: with Attack Skills)?$', ),
+    '(total) #% increased Fire Damage with Attack Skills': ('([0-9]+)% increased (?:Elemental|Fire) Damage(?: with Attack Skills)?$', ),
+    '(total) #% increased Lightning Damage with Attack Skills': ('([0-9]+)% increased (?:Elemental|Lightning) Damage(?: with Attack Skills)?$', ),
+
     '(total) #% increased Cold Spell Damage': ('([0-9]+)% increased (?:Elemental|Spell|Cold) Damage$', ),
     '(total) #% increased Fire Spell Damage': ('([0-9]+)% increased (?:Elemental|Spell|Fire) Damage$', ),
     '(total) #% increased Lightning Spell Damage': ('([0-9]+)% increased (?:Elemental|Spell|Lightning) Damage$', ),

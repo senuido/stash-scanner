@@ -5,12 +5,17 @@ from enum import IntEnum, Enum
 from array import array
 
 from lib.CurrencyManager import cm
+from lib.ItemCollection import ItemCollection
+from lib.Utility import logger
+from lib.ItemClass import ItemClass, dir_to_id
 
 float_expr = '[0-9]+|[0-9]+\s*\.\s*[0-9]+'
 _BO_PRICE_REGEX = re.compile('.*~(?:b/o|price)({num})(?:[/\\\\]({num}))?([a-z\-]+)'.format(num=float_expr))
 
 # _BO_PRICE_REGEX = re.compile('.*~(b/o|price)\s+([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 _LOCALIZATION_REGEX = re.compile("<<.*>>")
+superior_expr = re.compile('^Superior ')
+dir_expr = re.compile(r'.*2DItems[/\\](.*)')
 
 expr_level = re.compile('([0-9]+).*')
 phys_expr = re.compile('([0-9]+)% increased Physical Damage$')
@@ -43,13 +48,14 @@ def get_price(price):
 
 
 class Item:
-    __slots__ = ('_item', 'c_name', 'base', 'ilvl', 'links_count', 'corrupted', 'mirrored', 'identified', 'stacksize',
-                 'c_price',
+    __slots__ = ('_item', 'c_name', 'c_base', 'ilvl', 'links_count', 'corrupted', 'mirrored', 'identified', 'stacksize',
                  'implicit', 'explicit', 'enchant', 'craft', '_mods', 'sockets_count', 'buyout', 'type',
                  'crafted', 'enchanted', 'modcount',
                  '_quality', '_level', '_exp',
 
                  'price',  # price before conversion
+                 'c_price',
+                 '_iclass', 'rarity',
 
                  '_armour', '_evasion', '_es', '_life',
                  '_fres', '_cres', '_lres', '_chres', '_ele_res',
@@ -64,15 +70,17 @@ class Item:
         self.links_count = self._get_item_links_count()
         self.sockets_count = len(self.sockets)
         self.ilvl = item['ilvl']
-        self.base = item['typeLine'].lower()
         self.corrupted = item['corrupted']
         self.mirrored = item.get('duplicated', False)
         self.identified = item['identified']
 
+        self.c_base = self.base.lower()
+        self.c_name = '{} {}'.format(self._get_name().lower(), self.c_base).strip()
+
         # self.type = _ITEM_TYPE[item['frameType']]
         self.type = item['frameType']
+        self.rarity = self.get_rarity()
         self.stacksize = item.get("stackSize", 1)
-        self.c_name = self.name.lower()
 
         self.price = self.get_price(stash_price)
         self.c_price = cm.convert(*self.price) if self.price is not None else None
@@ -89,7 +97,7 @@ class Item:
         self.modcount = len(self.implicit) + len(self.explicit) + len(self.enchant) + len(self.craft)
 
         # Properties and on-demand computed fields
-
+        self._iclass = None
         self._quality = None
         self._level = None
         self._exp = None
@@ -129,6 +137,12 @@ class Item:
     @property
     def modifiable(self):
         return not (self.corrupted or self.mirrored)
+
+    @property
+    def iclass(self):
+        if self._iclass is None:
+            self._iclass = self.get_item_class()
+        return self._iclass
 
     @property
     def quality(self):
@@ -357,8 +371,12 @@ class Item:
         return self._item.get('note', '')
 
     @property
+    def base(self):
+        return _LOCALIZATION_REGEX.sub('', self._item['typeLine'])
+
+    @property
     def name(self):
-        return _LOCALIZATION_REGEX.sub('', '{} {}'.format(self._item['name'], self._item['typeLine'])).strip()
+        return '{} {}'.format(self._get_name(), self.base).strip()
 
     @property
     def sockets(self):
@@ -367,6 +385,9 @@ class Item:
     @property
     def id(self):
         return self._item['id']
+
+    def _get_name(self):
+        return _LOCALIZATION_REGEX.sub('', self._item['name'])
 
     def _get_item_links_count(self):
         groups = array('I', [0]) * 6
@@ -392,6 +413,14 @@ class Item:
     #     if vals:
     #         vals = [val[0] for val in vals]
     #     return vals
+
+    def get_rarity(self):
+        try:
+            return ItemRarity(self.type)
+        except ValueError:
+            return ItemRarity.Normal
+
+
 
     @staticmethod
     def get_mod_total(expr, mods, skip_vals=False):
@@ -476,6 +505,68 @@ class Item:
                 total += float(match.group(1))
         return evasion * (120 + total) / (quality + 100 + total)
 
+    def get_item_class(self):
+        global superior_expr
+        base_line = superior_expr.sub('', self.base, 1)
+        item_class = ItemClass(0)
+        try:
+            # this will fail for magic items with affixes since we dont strip those
+            item_class = ItemClass[ItemCollection.base_type_to_id[base_line]]
+        except KeyError:
+            match = dir_expr.match(self.icon)
+            # seems to be accurate for the remaining cases
+            if match:
+                item_dirs = re.split(r'[/\\]', match.group(1))[:-1]
+                for item_dir in item_dirs:
+                    class_id = dir_to_id.get(item_dir)
+                    if class_id:
+                        item_class = ItemClass[class_id]
+                        break
+            # not all flasks have a traditional link
+            elif 'Flask' in base_line:
+                item_class = ItemClass.Flask
+
+        if not item_class:
+            logger.warn('Failed determining item class. item: {}, base_line: {}, link {}'.format(self.name, base_line, self.icon))
+
+        return item_class
+
+    def get_item_base(self):
+        if self.iclass:
+            bases = ItemCollection.get_base_types_by_class(self.iclass)
+            typeLine = self._item['typeLine']
+            for base in bases:
+                if re.search(r'\b{}\b'.format(base), typeLine):
+                    return base
+        return None
+
+    def get_max_sockets(self):
+        """ ignores item type, only considers ilvl """
+        if self.ilvl >= 50:
+            return 6
+        if self.ilvl >= 35:
+            return 5
+        if self.ilvl >= 25:
+            return 4
+        if self.ilvl >= 2:
+            return 3
+        return 2
+
+    def get_type_max_sockets(self):
+        iclass = self.iclass
+        # if self.name in ItemCollection.SIX_LINK_EXCEPTIONS:
+        #     return 6
+        if (ItemClass.OneHandWeapon | ItemClass.Shield) & iclass == iclass:
+            return 3
+        if (ItemClass.BodyArmour | ItemClass.TwoHandWeapon) & iclass == iclass:
+            return 6
+        if (ItemClass.Helmet | ItemClass.Boots | ItemClass.Gloves) & iclass == iclass:
+            return 4
+        # if iclass & (ItemClass.Ring | ItemClass.Amulet) != 0:
+        if (ItemClass.Ring | ItemClass.Amulet) & iclass == iclass:
+            return 1  # Unset Ring, and Black Maw Talisman
+        return 0
+
     def get_item_price_raw(self):
         if self.price is not None:
             return self.note
@@ -551,6 +642,13 @@ class ItemType(IntEnum):
     QuestItem = 7
     Prophecy = 8
     Relic = 9
+
+class ItemRarity(IntEnum):
+    Normal = ItemType.Normal
+    Magic = ItemType.Magic
+    Rare = ItemType.Rare
+    Unique = ItemType.Unique
+    Relic = ItemType.Relic
 
 class ItemProperty:
     class PropertyValue:

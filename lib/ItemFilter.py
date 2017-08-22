@@ -2,11 +2,13 @@ import copy
 import json
 import re
 from datetime import datetime
+from enum import IntEnum
 from json import JSONEncoder
 
 import jsonschema
 
 from lib.CurrencyManager import cm
+from lib.ItemClass import ItemClass
 from lib.ModFilter import ModFilter, ModFilterType
 from lib.ModFilterGroup import FilterGroupFactory, FilterGroupType, ModFilterGroup
 from lib.Utility import AppException, get_verror_msg, RE_COMPILED_TYPE
@@ -22,8 +24,17 @@ _ITEM_TYPE = {0: 'normal',
               8: 'prophecy',
               9: 'relic'}
 
+_NAME_TO_TYPE = dict(map(reversed, _ITEM_TYPE.items()))
+
+
 FILTER_VALIDATION_ERROR = "Error validating filter: {}"
 FILTER_SCHEMA_ERROR = "Filter schema is invalid: {}"
+
+class FilterPriority(IntEnum):
+    Min = -10
+    AutoBase = 0
+    UserBase = 10
+    Max = 50
 
 class Filter:
     FILTER_SCHEMA_FNAME = "res\\filter.schema.json"
@@ -36,11 +47,13 @@ class Filter:
 
     schema_validator = None
 
-    def __init__(self, title, criteria=None, enabled=True, category='', id='', base_id='', desc=''):
+    def __init__(self, title, criteria=None, enabled=True, category='', id='', base_id='', desc='',
+                 priority=FilterPriority.UserBase.value):
         self.title = title
         self.criteria = criteria if criteria is not None else {}
         self.enabled = enabled
         self.category = category
+        self.priority = priority
         self.description = desc
 
         self.id = id
@@ -88,20 +101,26 @@ class Filter:
             except re.error as e:
                 raise AppException(Filter.FILTER_INVALID_REGEX.format(e.pattern, self.title, e))
 
+            #TODO rairty/iclass validate?
+
     def compile(self, base={}):
         crit = self.criteria
 
         comp = dict(base)
 
         for key in crit:
-            if key == 'type':
-                types = []
-                for itype in crit['type']:
-                    for id in _ITEM_TYPE:
-                        if itype == _ITEM_TYPE[id]:
-                            types.append(id)
-                            break
-                comp['type'] = types
+            # if key == 'type':
+            #     types = []
+            #     for itype in crit['type']:
+            #         for id in _ITEM_TYPE:
+            #             if itype == _ITEM_TYPE[id]:
+            #                 types.append(id)
+            #                 break
+            #     comp['type'] = types
+            if key == 'rarity':
+                comp[key] = [_NAME_TO_TYPE[itype] for itype in crit[key]]
+            elif key == 'iclass':
+                comp[key] = ItemClass[crit[key]]
             elif key == 'name':
                 comp['name'] = [name.lower() for name in crit[key]]
 
@@ -135,6 +154,7 @@ class Filter:
                 'category': self.category,
                 'id': self.id,
                 'baseid': self.baseId,
+                'priority': self.priority,
                 'description': self.description,
                 'criteria': self.criteria}
 
@@ -147,7 +167,8 @@ class Filter:
             data.get('category', 'user'),
             data.get('id', ''),
             data.get('baseid', ''),
-            data.get('description', ''))
+            data.get('description', ''),
+            data.get('priority', FilterPriority.UserBase.value))
 
 class FilterEncoder(JSONEncoder):
     def default(self, o):

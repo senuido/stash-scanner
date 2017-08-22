@@ -29,7 +29,7 @@ class Combobox_Autocomplete(TooltipEntry, object):
                 self.autocomplete_function = autocomplete_function
             else:
                 if list_of_items is None:
-                    raise ValueError("If not guiven complete function, list_of_items can't be 'None'")
+                    raise ValueError("If not given complete function, list_of_items can't be 'None'")
 
                 if not ignorecase_match:
                     if startswith_match:

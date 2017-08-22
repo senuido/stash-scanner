@@ -9,13 +9,17 @@ from tkinter import *
 from tkinter import messagebox
 from tkinter.ttk import *
 
+import itertools
+
 from lib.CurrencyManager import cm
 from lib.FilterManager import FilterManager, fm, lower_json
-from lib.ItemFilter import Filter
+from lib.ItemClass import ItemClass, id_to_name
+from lib.ItemCollection import ItemCollection
+from lib.ItemFilter import Filter, FilterPriority
 from lib.ModFilter import ModFilter, ModFilterType
 from lib.ModFilterGroup import FilterGroupFactory, FilterGroupType, CountFilterGroup
+from lib.ModsHelper import mod_helper
 from lib.Utility import AppException
-from ui.ModsHelper import mod_helper
 from ui.MultiCombobox import MultiCombobox
 from ui.MyTreeview import MyTreeview
 from ui.ScrollingFrame import Scrolling_Area
@@ -34,16 +38,30 @@ boolOptions = [bo.name for bo in BoolOption]
 FGTypeOptions = [fg_type.name for fg_type in FilterGroupType]
 ModTypeOptions = [mod_type.name for mod_type in ModFilterType if mod_type != ModFilterType.Pseudo]
 
-ItemTypeOptions = collections.OrderedDict([
+_hidden_item_classes = (ItemClass.MiscOneHandSword, ItemClass.MiscOneHandMace, ItemClass.Weapon, ItemClass.Accessories, ItemClass.OffHand, ItemClass.Armour)
+ItemClassOptions = collections.OrderedDict(itertools.chain([(None, 'Any')],
+                                   sorted([(iclass.name, id_to_name[iclass.name]) for iclass in ItemClass if iclass not in _hidden_item_classes])))
+
+InvItemClassOptions = collections.OrderedDict(map(reversed, ItemClassOptions.items()))
+
+# ItemTypeOptions = collections.OrderedDict([
+#     ('Normal', 'normal'),
+#     ('Magic', 'magic'),
+#     ('Rare', 'rare'),
+#     ('Unique', 'unique'),
+#     ('Gem', 'gem'),
+#     ('Currency', 'currency'),
+#     ('Divination Card', 'divination card'),
+#     ('Quest Item', 'quest item'),
+#     ('Prophecy', 'prophecy'),
+#     ('Relic', 'relic')
+# ])
+
+ItemRarityOptions = collections.OrderedDict([
     ('Normal', 'normal'),
     ('Magic', 'magic'),
     ('Rare', 'rare'),
     ('Unique', 'unique'),
-    ('Gem', 'gem'),
-    ('Currency', 'currency'),
-    ('Divination Card', 'divination card'),
-    ('Quest Item', 'quest item'),
-    ('Prophecy', 'prophecy'),
     ('Relic', 'relic')
 ])
 
@@ -326,6 +344,8 @@ class FilterEditor(Toplevel):
 
         self.lst_categories = []
         self.lst_ids = []
+        # self.lst_base_types = []
+        self.lst_base_types = sorted(ItemCollection.base_type_to_id.keys())
 
         self.configure(padx=10, pady=10)
         self.rowconfigure(0, weight=1)
@@ -444,12 +464,12 @@ class FilterEditor(Toplevel):
         self.deiconify()
         self.wait_visibility()
 
-        try:
-            mod_helper.load()
-        except Exception as e:
-            messagebox.showerror('Mods error',
-                                 'Failed to load item mods information.\n{}'.format(e),
-                                 parent=self)
+        # try:
+        #     mod_helper.load()
+        # except Exception as e:
+        #     messagebox.showerror('Mods error',
+        #                          'Failed to load item mods information.\n{}'.format(e),
+        #                          parent=self)
 
         self.tree.selection_set(list())
 
@@ -733,7 +753,8 @@ class FilterEditor(Toplevel):
         self.compiling.set(False)
 
     def onFiltersUpdated(self):
-        self.reload_needed = True
+        # self.reload_needed = True
+        self.reloadAutoFilters()
 
     def onFilterIdChange(self, curr_iid=None, new_id=None):
         tree = self.tree
@@ -891,6 +912,36 @@ class FilterEditor(Toplevel):
             self.treeIdToObj[iid] = curr
             parent_filter = curr
 
+    def reloadAutoFilters(self):
+        # auto filters will always have a unique ID
+        # TODO: update tree on name change/revalidation of children?
+        updated_filters = {fltr.id: fltr for fltr in fm.autoFilters}
+        current_filters = {fltr.id: fltr for fltr in self.objToTreeId if fltr not in fm.userFilters}
+
+        common = updated_filters.keys() & current_filters.keys()
+        for fid in common:
+            iid = self.objToTreeId.pop(current_filters[fid])
+            new_fltr = updated_filters[fid]
+            self.treeIdToObj[iid] = new_fltr
+            self.objToTreeId[new_fltr] = iid
+
+        for fid in current_filters.keys() - updated_filters.keys():
+            fltr = current_filters[fid]
+            iid = self.objToTreeId[fltr]
+
+            self.onFilterIdChange(iid, new_id=None)
+            self.tree.delete(iid)
+            del self.treeIdToObj[iid]
+            del self.objToTreeId[fltr]
+
+        for fid in updated_filters.keys() - current_filters.keys():
+            fltr = updated_filters[fid]
+            self.addFilterToTree(fltr)
+            self.onFilterIdChange(self.objToTreeId[fltr], fltr.id)
+
+        self._update_ids()
+        self._update_categories()
+
     def fillTree(self, filters=None):
         self.tree.delete(*self.tree.get_children())
         self.objToTreeId.clear()
@@ -905,12 +956,12 @@ class FilterEditor(Toplevel):
     def tree_selected(self, event=None):
         selected = self.tree.selection()
 
-        if self.reload_needed:
-            self._update_categories()
-            self._update_ids()
-            self.fillTree()
-            self.reload_needed = False
-            selected = None
+        # if self.reload_needed:
+        #     self._update_categories()
+        #     self._update_ids()
+        #     self.fillTree()
+        #     self.reload_needed = False
+        #     selected = None
 
         if not selected:
             self.currFilter = None
@@ -984,6 +1035,18 @@ class FilterEditor(Toplevel):
         self.addColumn(entry, sticky='wns')
         self.filter_form.field_register('category', entry, str)
 
+        is_valid_priority_cmd = self.register(functools.partial(_is_number_or_empty, min=FilterPriority.Min, max=FilterPriority.Max, accept_empty=False))
+        self.addRow(Label(parent, text="Priority:"), sticky='e')
+
+        frm = Frame(parent, style='Borderless.TFrame')
+        self.addColumn(frm, sticky='wns')
+
+        entry = Spinbox(frm, from_=FilterPriority.Min.value, to=FilterPriority.Max.value, increment=1, width=5,
+                        validate='all', validatecommand=(is_valid_priority_cmd, '%P'))
+        self.addColumn(entry, padx=0, pady=0)
+        self.addColumn(Label(frm, text="(Higher means it is processed first)", font=tkfont.nametofont('DetailsSubtext')), pady=0)
+        self.filter_form.field_register('priority', entry, float)
+
         self.addRow(Label(parent, text="Description:"), sticky='e')
         entry = PlaceholderEntry(parent, 'Enter a description..', style='Default.TEntry', width=80)
         self.addColumn(entry, sticky='wns')
@@ -1004,21 +1067,32 @@ class FilterEditor(Toplevel):
 
         ## Name
         self.addColumn(Label(parent, text="Name(s):"), sticky='e')
-        entry = PlaceholderEntry(parent, 'Enter names (separated by ,)..', style='Default.TEntry')
-        self.addColumn(entry, columnspan=5)
+        entry = PlaceholderEntry(parent, 'Enter names.. (use comma to separate names)', style='Default.TEntry')
+        self.addColumn(entry, columnspan=6)
         self.filter_form.field_register('name', entry, list, level)
 
-        ## Type
-        self.addRow(Label(parent, text="Type(s):"), sticky='e')
-        entry = MultiCombobox(parent, ItemTypeOptions)
-        self.addColumn(entry, columnspan=3)
-        self.filter_form.field_register('type', entry, type(None), level)
+        ## Item Class
+        self.addRow(Label(parent, text="Type:"), sticky='e')
+        entry = Combobox(parent, values=[iclass for iclass in ItemClassOptions.values()], state=READONLY)
+        self.addColumn(entry)
+        self.filter_form.field_register('iclass', entry, type(None), level,
+                                        get_func=self.getFilterItemClass,
+                                        set_func=self.setFilterItemClass)
+        entry.bind('<<ComboboxSelected>>', lambda evt: self.updateBaseTypes(InvItemClassOptions[evt.widget.get()]))
 
         ## Base
         self.addColumn(Label(parent, text="Base:"), sticky='e')
-        entry = PlaceholderEntry(parent, 'Enter item base..', style='Default.TEntry')
+        entry = Combobox_Autocomplete(parent, style='Autocomplete.TEntry',
+                                      list_of_items=self.lst_base_types, startswith_match=False)
         self.addColumn(entry, sticky='ew')
         self.filter_form.field_register('base', entry, str, level)
+        self.entry_base = entry
+
+        ## Rarity
+        self.addColumn(Label(parent, text="Rarity:"), sticky='e')
+        entry = MultiCombobox(parent, ItemRarityOptions)
+        self.addColumn(entry, columnspan=2)
+        self.filter_form.field_register('rarity', entry, type(None), level)
 
         ## Price / Buyout
         self.addRow(Label(parent, text="Price:"), sticky='e')
@@ -1351,6 +1425,27 @@ class FilterEditor(Toplevel):
 
     def onClose(self):
         self.destroy()
+
+    def getFilterItemClass(self, widget):
+        return InvItemClassOptions[widget.get()]
+
+    def setFilterItemClass(self, widget, class_id=None):
+        widget.set(ItemClassOptions[class_id])
+        self.updateBaseTypes(class_id)
+
+    def updateBaseTypes(self, class_id=None):
+        if not class_id:
+            self.entry_base.list_of_items = self.lst_base_types
+        else:
+            self.entry_base.list_of_items = ItemCollection.get_base_types_by_class(ItemClass[class_id])
+
+        # if not class_id:
+        #     lst_bases = ItemCollection.base_type_to_id.keys()
+        # else:
+        #     lst_bases = ItemCollection.get_base_types_by_class(ItemClass[class_id])
+        #
+        # self.lst_base_types.clear()
+        # self.lst_base_types.extend(sorted(lst_bases))
 
     def getFilterGroups(self, container):
         fgs = []
@@ -1699,11 +1794,11 @@ class FormHelper:
             w.config(state=state)
 
 
-def _is_number_or_empty(text, min=None, max=None):
+def _is_number_or_empty(text, min=None, max=None, accept_empty=True):
     try:
         # text = text.strip()
         if text == '':
-            return True
+            return accept_empty
 
         if text.find(' ') != -1:
             return False

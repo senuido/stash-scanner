@@ -2,5 +2,5 @@ gntp==1.0.3
 pycurl==7.43.0
 pyperclip==1.5.27
 jsonschema==2.6.0
-joblib==0.11
+aenum==2.0.8
 Pillow==4.1.1

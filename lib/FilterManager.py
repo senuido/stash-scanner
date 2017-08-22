@@ -6,18 +6,21 @@ import os
 import pycurl
 import re
 import threading
-from datetime import datetime, timedelta
 import time
+from datetime import datetime, timedelta
+from enum import IntEnum
 
 import jsonschema
 
-from lib.CurrencyManager import cm
-from lib.ItemFilter import _ITEM_TYPE, Filter, FilterEncoder
 from lib.CompiledFilter import CompiledFilter
+from lib.CurrencyManager import cm
+from lib.ItemClass import ItemClass
+from lib.ItemFilter import _ITEM_TYPE, Filter, FilterEncoder, _NAME_TO_TYPE, FilterPriority
+from lib.ItemHelper import ItemRarity, ItemType
 from lib.ModFilter import ModFilter, ModFilterType
 from lib.ModFilterGroup import AllFilterGroup
 from lib.Utility import config, AppException, getJsonFromURL, str2bool, logexception, msgr, get_verror_msg, \
-    utc_to_local, CompileException
+    utc_to_local, CompileException, ConfidenceLevel
 
 FILTER_FILE_MISSING = "Missing file: {}"
 FILTER_INVALID_JSON = "Error decoding JSON: {} in file {}"
@@ -44,25 +47,37 @@ _URLS = [
 ]
 
 _VARIANTS = {
-    "Physical":			"([0-9]+)% increased Physical Damage$",
-    "Cold":				"([0-9]+)% increased Cold Damage$",
-    "Fire":				"([0-9]+)% increased Fire Damage$",
-    "Lightning":		"([0-9]+)% increased Lightning Damage$",
-    "ES":				"([0-9]+)% increased Energy Shield$",
-    "Armour":			"([0-9]+)% increased Armour$",
-    "Armour/Evasion/ES":"([0-9]+)% increased Armour, Evasion and Energy Shield$",
-    "Armour/ES":		"([0-9]+)% increased Armour and Energy Shield$",
-    "Evasion/ES":		"([0-9]+)% increased Evasion and Energy Shield$",
-    "Evasion/ES/Life":	"([0-9]+)% increased Evasion and Energy Shield$",
-    "Evasion":			"([0-9]+)% increased Evasion Rating$",
-    "Armour/Evasion":	"([0-9]+)% increased Armour and Evasion$",
-    "Armour/ES/Life":	"([0-9]+)% increased Armour and Evasion$",
-    "Added Attacks":	"Adds ([0-9]+) to ([0-9]+) Lightning Damage to Attacks during Flask effect$",
-    "Added Spells":		"Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect$",
-    "Penetration":		"Damage Penetrates 10% Lightning Resistance during Flask effect$",
-    "Conversion": 		"20% of Physical Damage Converted to Lightning during Flask effect$"
+    # Doryani's Invitation
+    "Physical":			("([0-9]+)% increased Physical Damage$", ),
+    "Cold":				("([0-9]+)% increased Cold Damage$", ),
+    "Fire":				("([0-9]+)% increased Fire Damage$", ),
+    "Lightning":		("([0-9]+)% increased Lightning Damage$", ),
+
+    # Atziri's Splendour
+    "Armour": ("([0-9]+)% increased Armour$", "\\+([0-9]+) to maximum Life$"),
+    "Evasion": ("([0-9]+)% increased Evasion Rating$", "\\+([0-9]+) to maximum Life$"),
+    "ES": ("([0-9]+)% increased Energy Shield$", "\\+([0-9]+) to maximum Energy Shield$"),
+
+    "Armour/ES": ("([0-9]+)% increased Armour and Energy Shield$", "\\+([0-9]+) to maximum Energy Shield$"),
+    "Evasion/ES": ("([0-9]+)% increased Evasion and Energy Shield$", "\\+([0-9]+) to maximum Energy Shield$"),
+
+    "Armour/Evasion": ("([0-9]+)% increased Armour and Evasion$", "\\+([0-9]+) to maximum Life$"),
+    "Evasion/ES/Life": ("([0-9]+)% increased Evasion and Energy Shield$", "\\+([0-9]+) to maximum Life$"),
+    "Armour/ES/Life": ("([0-9]+)% increased Armour and Energy Shield$", "\\+([0-9]+) to maximum Life$"),
+
+    "Armour/Evasion/ES": ("([0-9]+)% increased Armour, Evasion and Energy Shield$", ),
+
+    # Vessel of Vinktar
+    "Added Attacks":	("Adds ([0-9]+) to ([0-9]+) Lightning Damage to Attacks during Flask effect$", ),
+    "Added Spells":		("Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect$", ),
+    "Penetration":		("Damage Penetrates ([0-9]+)% Lightning Resistance during Flask effect$", ),
+    "Conversion": 		("([0-9]+)% of Physical Damage Converted to Lightning during Flask effect$", ),
 }
 
+class FilterVersion(IntEnum):
+    V1 = 1
+    V2 = 2
+    Latest = V2
 
 class FilterManager:
     filter_file_lock = {_USER_DEFAULT_FILTERS_FNAME: threading.Lock(),
@@ -71,11 +86,13 @@ class FilterManager:
     config_file_lock = threading.Lock()
     UPDATE_INTERVAL = 10  # minutes
 
-    DEFAULT_BUDGET = ''
+    DEFAULT_BUDGET = '200 chaos'
     DEFAULT_MIN_PRICE = ''
     DEFAULT_PRICE_THRESHOLD = '10 chaos'
     DEFAULT_PRICE_OVERRIDE = '* 1'
-    DEFAULT_FPRICE_OVERRIDE = '* 0.7'
+    DEFAULT_FPRICE_OVERRIDE = '-15 chaos'
+    DEFAULT_CONFIDENCE_LEVEL = ConfidenceLevel.Medium.value
+    DEFAULT_ENABLE_5L_FILTERS = True
 
     def __init__(self):
         self.init()
@@ -92,6 +109,8 @@ class FilterManager:
         self.default_min_price = self.DEFAULT_MIN_PRICE
         self.default_price_override = self.DEFAULT_PRICE_OVERRIDE
         self.default_fprice_override = self.DEFAULT_FPRICE_OVERRIDE
+        self.confidence_level = self.DEFAULT_CONFIDENCE_LEVEL
+        self.enable_5l_filters = self.DEFAULT_ENABLE_5L_FILTERS
         self.price_overrides = {}
         self.filter_price_overrides = {}
         self.filter_state_overrides = {}
@@ -123,6 +142,8 @@ class FilterManager:
             self.price_overrides = data.get('price_overrides', {})
             self.filter_price_overrides = data.get('filter_price_overrides', {})
             self.filter_state_overrides = data.get('filter_state_overrides', {})
+            self.confidence_level = data.get('confidence_level', self.DEFAULT_CONFIDENCE_LEVEL)
+            self.enable_5l_filters = data.get('enable_5l_filters', self.DEFAULT_ENABLE_5L_FILTERS)
 
             try:
                 self.validateConfig()
@@ -145,7 +166,9 @@ class FilterManager:
             'default_fprice_override': self.default_fprice_override,
             'price_overrides': self.price_overrides,
             'filter_price_overrides': self.filter_price_overrides,
-            'filter_state_overrides': self.filter_state_overrides
+            'filter_state_overrides': self.filter_state_overrides,
+            'confidence_level': self.confidence_level,
+            'enable_5l_filters': self.enable_5l_filters
         }
         with self.config_file_lock:
             with open(FILTERS_CFG_FNAME, mode="w", encoding="utf-8", errors="replace") as f:
@@ -172,12 +195,12 @@ class FilterManager:
             def name_to_id(name):
                 return '_' + name.lower().replace(' ', '_')
 
-            def get_unique_id(title, name, category):
+            def get_unique_id(title, name, category, links):
                 title_id = name_to_id(title)
                 if title_id not in filter_ids:
                     return title_id
 
-                name_id = name_to_id(name)
+                name_id = name_to_id('{}{}'.format(name, ' {}L'.format(links) if links else ''))
                 if name_id not in filter_ids:
                     # print('id {} was taken, using name id {} instead'.format(title_id, name_id))
                     return name_id
@@ -208,6 +231,9 @@ class FilterManager:
                     category = re.match(".*Get(.*)Overview", furl).group(1).lower()
 
                     for item in data['lines']:
+                        if item['count'] < self.confidence_level:
+                            continue
+                        priority = FilterPriority.AutoBase
                         crit = {}
                         # crit['price_max'] = "{} exalted".format(float(item.get('exaltedValue', 0)))
                         crit['price_max'] = "{} chaos".format(float(item.get('chaosValue', 0)))
@@ -216,18 +242,32 @@ class FilterManager:
                         if base:
                             name += ' ' + base
                         crit['name'] = ['"{}"'.format(name)]
-                        crit['type'] = [_ITEM_TYPE[item['itemClass']]]
-                        crit['buyout'] = True
 
+                        try:
+                            rarity = ItemRarity(item['itemClass'])
+                            crit['rarity'] = [_ITEM_TYPE[rarity]]
+                        except ValueError:
+                            rarity = None
+
+                        crit['buyout'] = True
+                        links = item['links']
                         title = "{} {} {}".format(
-                            'Legacy' if 'relic' in crit['type'] else '',
+                            'Legacy' if rarity == ItemRarity.Relic else '',
                             item['name'],
                             item['variant'] if item['variant'] is not None else '').strip()
 
-                        id = get_unique_id(title, name, category)
+                        if links:
+                            title = '{} {}L'.format(title, links)
+                            crit['links_min'] = links
+                            if links == 5:
+                                priority += 1
+                            elif links == 6:
+                                priority += 2
+
+                        id = get_unique_id(title, name, category, links)
                         filter_ids.append(id)
 
-                        fltr = Filter(title, crit, False, category, id=id)
+                        fltr = Filter(title, crit, False, category, id=id, priority=priority)
 
                         if item['variant'] is not None:
                             if item['variant'] not in _VARIANTS:
@@ -236,7 +276,9 @@ class FilterManager:
                             else:
                                 # crit['explicit'] = {'mods': [{'expr': _VARIANTS[item['variant']]}]}
                                 fg = AllFilterGroup()
-                                fg.mfs = [ModFilter(ModFilterType.Explicit, _VARIANTS[item['variant']])]
+                                for expr in _VARIANTS[item['variant']]:
+                                    fg.addModFilter(ModFilter(ModFilterType.Explicit, expr))
+
                                 fltr.criteria['fgs'] = [fg.toDict()]
 
                         fltr.validate()
@@ -324,7 +366,7 @@ class FilterManager:
         return valid
 
     def updateConfig(self, default_price_override, default_fprice_override, price_threshold, budget, min_price,
-                     price_overrides, filter_price_overrides, filter_state_overrides):
+                     price_overrides, filter_price_overrides, filter_state_overrides, confidence_level, enable_5l_filters):
         with self.compile_lock:
             backup = copy.copy(self)
 
@@ -336,7 +378,8 @@ class FilterManager:
             self.price_overrides = price_overrides
             self.filter_price_overrides = filter_price_overrides
             self.filter_state_overrides = filter_state_overrides
-
+            self.confidence_level = confidence_level
+            self.enable_5l_filters = enable_5l_filters
 
             try:
                 self.validateConfig()
@@ -350,6 +393,8 @@ class FilterManager:
                 self.price_overrides = backup.price_overrides
                 self.filter_price_overrides = backup.filter_price_overrides
                 self.filter_state_overrides = backup.filter_state_overrides
+                self.confidence_level = backup.confidence_level
+                self.enable_5l_filters = backup.enable_5l_filters
 
                 # self.loadConfig()
                 raise
@@ -392,6 +437,8 @@ class FilterManager:
                 comp = self.compileFilter(fltr)
                 cf = CompiledFilter(fltr, comp)
                 cf.enabled = fltr.category not in self.disabled_categories
+                if not self.enable_5l_filters:
+                    cf.enabled = '_5l' not in cf.fltr.id
                 filters.append(cf)
             except CompileException as e:
                 msgr.send_msg('Failed compiling filter {}: {}'.format(fltr.title, e), logging.WARN)
@@ -424,9 +471,13 @@ class FilterManager:
             if cf.enabled and 'price_max' in cf.comp and cf.comp['price_max'] <= 0:
                 cf.enabled = False
                 msgr.send_msg('Filter disabled: {}. price max must be higher than zero.'.format(cf.getDisplayTitle()),
-                              logging.WARN)
+                              logging.DEBUG)
 
-        active_filters = [fltr for fltr in filters if fltr.enabled]
+        active_filters = [cf for cf in filters if cf.enabled]
+        active_filters.sort(key=lambda cf: cf.fltr.priority, reverse=True)
+
+        for cf in filters:
+            cf.finalize()
 
         self.activeFilters = active_filters
         self.compiledFilters = filters
@@ -608,6 +659,7 @@ class FilterManager:
         with cls.filter_file_lock[fname]:
             data = {
                 'filters': filters,
+                'version': FilterVersion.Latest,
                 'last_update': datetime.utcnow()
             }
 
@@ -635,11 +687,17 @@ class FilterManager:
 
             for item in data.get('filters', []):
                 fltr = Filter.fromDict(item)
-                if validate_data:
-                    fltr.validate()
                 filters.append(fltr)
 
+            ver = data.get('version', FilterVersion.V1)
+            if ver != FilterVersion.Latest:
+                FilterManager.convert(ver, filters)
             last_update = data.get('last_update', '')
+
+            if validate_data:
+                for fltr in filters:
+                    fltr.validate()
+
             try:
                 last_update = datetime.strptime(last_update, '%Y-%m-%dT%H:%M:%S.%f')
             except ValueError:
@@ -667,6 +725,42 @@ class FilterManager:
             except FileNotFoundError:
                 pass
 
+    @staticmethod
+    def convert(ver, filters):
+        if ver == FilterVersion.V1:
+            def is_type_rarity(item_type):
+                try:
+                    ItemRarity(_NAME_TO_TYPE[item_type])
+                    return True
+                except ValueError:
+                    return False
+
+            def type_to_item_class(item_type):
+                val = _NAME_TO_TYPE[item_type]
+                if val == ItemType.DivinationCard:
+                    return ItemClass.DivinationCard
+                if val == ItemType.Prophecy:
+                    return ItemClass.Prophecy
+                if val == ItemType.Gem:
+                    return ItemClass.Gem
+                if val == ItemType.Currency:
+                    return ItemClass.Currency
+                return None
+
+            for fltr in filters:
+                types = fltr.criteria.get('type')
+                if types:
+                    rarity = [item_type for item_type in types if is_type_rarity(item_type)]
+                    fltr.criteria['rarity'] = rarity
+
+                    for item_type in types:
+                        iclass = type_to_item_class(item_type)
+                        if iclass:
+                            fltr.criteria['iclass'] = iclass.name
+                            break
+
+                    fltr.criteria.pop('type')
+
 
 
 def lower_json(x):
@@ -675,7 +769,7 @@ def lower_json(x):
     if isinstance(x, dict):
         d = {}
         for k, v in x.items():
-            if k.lower() in ('title', 'expr', 'name', 'description'):
+            if k.lower() in ('title', 'expr', 'name', 'description', 'iclass'):
                 d[k.lower()] = v
             else:
                 d[k.lower()] = lower_json(v)

@@ -150,6 +150,20 @@
 					"type": "array",
 					"minItems": 1
 				},
+				"rarity": {
+					"id": "/criteria/rarity",
+					"items": {
+						"id": "/criteria/rarity/items",
+						"type": "string",
+						"enum": ["normal", "magic", "rare", "unique", "relic"]
+					},
+					"type": "array",
+					"minItems": 1
+				},
+				"iclass": {
+					"id": "/criteria/iclass",
+					"type": "string"
+				},
 				"fgs": {
 					"items": {
 						"$ref": "#/definitions/filter_group"
@@ -270,6 +284,10 @@
 		"baseid": {
 			"id": "/baseid",
 			"type": "string"
+		},
+		"priority": {
+			"id": "/priority",
+			"type": "number"
 		},
 		"description": {
 			"id": "/description",

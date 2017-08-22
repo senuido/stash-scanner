@@ -47,7 +47,7 @@ class MultiCombobox(Menubutton):
             columnbreak = False
             menu.add_checkbutton(label=choice, variable=self.choices[choice],
                                  onvalue=True, offvalue=False, columnbreak=columnbreak,
-                                 command=self.updateValue, hidemargin=True)
+                                 command=self.updateValue)
         self.updateValue()
 
     def updateValue(self):

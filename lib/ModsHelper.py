@@ -3,6 +3,7 @@ import re
 
 from lib.ModFilter import ModFilterType
 from lib.ModFilterGroup import PSEUDO_MODS
+from lib.Utility import AppException
 
 
 class ModsHelper:
@@ -12,6 +13,12 @@ class ModsHelper:
     def __init__(self):
         self.mod_list = None
         self.mod_set = None
+
+    def init(self):
+        try:
+            self.load()
+        except Exception as e:
+            raise AppException('Failed to load item mods information.\n{}'.format(e))
 
     def load(self):
         mod_set = set()
@@ -94,5 +101,18 @@ class ModsHelper:
             tag, mod_text = self._getTagText(mod_text)
             if tag is None:
                 return mod_text
+
+    def modToParam(self, mod_type, expr):
+        text = self.modToText(mod_type, expr)
+
+        # prevents custom mod conversion
+        # while searching for sortable mods works, for most cases, custom mods will break the search
+        if not self.isPredefined(text):
+            raise ValueError('Cannot convert custom mod {} to param.'.format(text))
+
+        if mod_type == ModFilterType.Total:
+            text = '({}) {}'.format(ModFilterType.Pseudo.name.lower(), text)
+
+        return text
 
 mod_helper = ModsHelper()

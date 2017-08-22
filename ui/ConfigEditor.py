@@ -3,20 +3,21 @@ import functools
 import pprint
 import threading
 from enum import Enum
-from tkinter import Toplevel, StringVar, BooleanVar, messagebox
+from tkinter import Toplevel, StringVar, BooleanVar, messagebox, IntVar
 from tkinter.constants import *
-from tkinter.ttk import Notebook, Frame, Label, Button, Style, Combobox, Entry, Checkbutton
+import tkinter.font as tkfont
+from tkinter.ttk import Notebook, Frame, Label, Button, Style, Combobox, Entry, Checkbutton, Scale
 
 from lib.CurrencyManager import cm
 from lib.FilterManager import fm
 from lib.ItemFilter import Filter
-from lib.Utility import logexception, AppException, config, AppConfiguration
+from lib.Utility import logexception, AppException, config, AppConfiguration, ConfidenceLevel
 from ui.MyTreeview import EditableTreeview
 from ui.ScrollingFrame import AutoScrollbar
 from ui.TooltipEntry import TooltipEntry
 from ui.cmb_autocomplete import Combobox_Autocomplete
 from ui.entry_placeholder import PlaceholderEntry
-
+from ui.ttk_spinbox import Spinbox
 
 READONLY = 'readonly'
 
@@ -102,8 +103,8 @@ class SettingsEditor(Frame):
         # self.frm_settings.rowconfigure(2, weight=1)
         # self.frm_settings.columnconfigure(0, weight=1)
 
-        is_valid_req_delay = self.register(functools.partial(_is_number_or_empty, min=1))
-        is_valid_duration = self.register(functools.partial(_is_number_or_empty, min=0, max=20))
+        is_valid_req_delay = self.register(functools.partial(_is_number, min=1))
+        is_valid_duration = self.register(functools.partial(_is_number, min=0, max=20))
 
         self.frm_settings.grid(padx=10, pady=10, sticky='nsew')
 
@@ -130,12 +131,17 @@ class SettingsEditor(Frame):
         frm.grid(row=4, columnspan=3)
 
         self.var_notify = BooleanVar()
+        self.var_notify.trace_variable('w', lambda a, b, c: self._on_notify_option_change())
         self.cb_notifications = Checkbutton(frm, text='Growl notifications', variable=self.var_notify)
         self.cb_notifications.grid(row=0, column=0)
 
         self.var_notify_copy = BooleanVar()
         self.cb_notify_copy = Checkbutton(frm, text='Copy message to clipboard', variable=self.var_notify_copy)
-        self.cb_notify_copy.grid(row=0, column=1)
+        self.cb_notify_copy.grid(row=0, column=1, padx=5)
+
+        self.var_notify_play_sound = BooleanVar()
+        self.cb_notify_play_sound = Checkbutton(frm, text='Play sound', variable=self.var_notify_play_sound)
+        self.cb_notify_play_sound.grid(row=0, column=2)
 
         frm_btns = Frame(self.frm_settings)
         frm_btns.grid(row=5, columnspan=3, pady=(20, 5), sticky='w')
@@ -145,12 +151,18 @@ class SettingsEditor(Frame):
         self.btn_reload = Button(frm_btns, text='Reload', command=self.loadSettings)
         self.btn_reload.grid(row=0, column=1)
 
+    def _on_notify_option_change(self):
+        state = NORMAL if self.var_notify.get() else DISABLED
+        self.cb_notify_copy.config(state=state)
+        self.cb_notify_play_sound.config(state=state)
+
     def applyChanges(self):
         cfg = AppConfiguration(load=False)
 
         cfg.league = self.cmb_league.get() or leagueOptions[0]
         cfg.notify = self.var_notify.get()
         cfg.notify_copy_msg = self.var_notify_copy.get()
+        cfg.notify_play_sound = self.var_notify_play_sound.get()
         cfg.notification_duration = float(self.entry_notification_duration.get() or 4)
         cfg.request_delay = float(self.entry_req_delay.get() or 1)
         cfg.scan_mode = self.cmb_scan_mode.get() or scanModeOptions[0]
@@ -164,6 +176,7 @@ class SettingsEditor(Frame):
         self.entry_notification_duration.insert(0, config.notification_duration)
         self.var_notify.set(config.notify)
         self.var_notify_copy.set(config.notify_copy_msg)
+        self.var_notify_play_sound.set(config.notify_play_sound)
         self.entry_req_delay.delete(0, END)
         self.entry_req_delay.insert(0, config.request_delay)
 
@@ -181,7 +194,7 @@ class PricesColumn(Enum):
     ID = 'ID'
     ItemPrice = 'Item value'
     Override = 'Override'
-    FilterPrice = 'Filter Price (c)'
+    FilterPrice = 'Effective item value'#'Filter Price (c)'
     FilterOverride = 'Filter Override'
     EffectiveFilterPrice = 'Effective Filter Price (c)'
     FilterStateOverride = 'Filter State Override'
@@ -214,6 +227,7 @@ class PricesEditor(Frame):
         # Button Frame
         frm_btns = Frame(self.frm_prices, relief=SOLID, borderwidth=2)
         frm_btns.grid(row=0, column=0, pady=(0, 5), sticky='nsew')
+        frm_btns.columnconfigure(10, weight=1)
         # self.entry_currency = \
         #     Combobox_Autocomplete(frm, list_of_items=['one of many currencies'], startswith_match=False)
 
@@ -232,11 +246,15 @@ class PricesEditor(Frame):
         # frm.columnconfigure(3, weight=1)
         self.btn_reload.grid(row=2, column=3, sticky='e', pady=5)
 
+        self.var_advanced = BooleanVar(False)
+        self.var_advanced.trace_variable('w', lambda a, b, c: self._on_view_option_change())
+        self.cb_advanced = Checkbutton(frm_btns, text='Advanced', variable=self.var_advanced)
+        self.cb_advanced.grid(row=2, column=10, sticky='e', padx=10)
+
         frm_border = Frame(self.frm_prices, relief=SOLID, borderwidth=2)
         frm_border.grid(row=2, column=0, sticky='nsew')
         frm_border.rowconfigure(2, weight=1)
         frm_border.columnconfigure(0, weight=1)
-
         # Tree Frame
         self.frm_tree = Frame(frm_border)
         self.frm_tree.grid(row=2, column=0, sticky='nsew', padx=5, pady=(0, 0))
@@ -259,7 +277,7 @@ class PricesEditor(Frame):
         #     Combobox_Autocomplete(frm, list_of_items=['one of many currencies'], startswith_match=False)
 
         lbl = Label(frm, text='Item value threshold:')
-        lbl.grid(row=0, column=0, padx=5, pady=5)
+        lbl.grid(row=0, column=0, padx=5, pady=5, sticky='w')
         self.var_threshold = StringVar()
         self.entry_threshold = TooltipEntry(frm, textvariable=self.var_threshold)
         self.entry_threshold.bind('<FocusOut>', lambda event: self._validate_threshold_entry())
@@ -278,25 +296,44 @@ class PricesEditor(Frame):
         lbl.grid(row=0, column=4, padx=5, pady=5)
         self.var_min_price = StringVar()
         self.entry_min_price = TooltipEntry(frm, textvariable=self.var_min_price)
-        self.entry_min_price .bind('<FocusOut>', lambda event: self._validate_min_price_entry())
-        self.entry_min_price .grid(row=0, column=5, padx=5, pady=5)
+        self.entry_min_price.bind('<FocusOut>', lambda event: self._validate_min_price_entry())
+        self.entry_min_price.grid(row=0, column=5, padx=5, pady=5)
         self.var_min_price.trace('w', lambda a, b, c: self.on_entry_change(self.entry_min_price))
 
         lbl = Label(frm, text='Default filter override:')
         lbl.grid(row=0, column=6, padx=5, pady=5)
+        self.lbl_fprice_override = lbl
         self.var_fprice_override = StringVar()
         self.entry_fprice_override = TooltipEntry(frm, textvariable=self.var_fprice_override)
         self.entry_fprice_override.bind('<FocusOut>', lambda event: self._validate_fprice_override_entry())
         self.entry_fprice_override.grid(row=0, column=7, padx=5, pady=5)
         self.var_fprice_override.trace('w', lambda a, b, c: self.on_entry_change(self.entry_fprice_override))
 
+        # Advanced
+
         lbl = Label(frm, text='Default item value override:')
-        lbl.grid(row=0, column=8, padx=5, pady=5)
+        lbl.grid(row=1, column=0, padx=5, pady=(2, 5), sticky='w')
+        self.lbl_price_override = lbl
         self.var_price_override = StringVar()
         self.entry_price_override = TooltipEntry(frm, textvariable=self.var_price_override)
         self.entry_price_override.bind('<FocusOut>', lambda event: self._validate_price_override_entry())
-        self.entry_price_override.grid(row=0, column=9, padx=5, pady=5)
+        self.entry_price_override.grid(row=1, column=1, padx=5, pady=(2, 5))
         self.var_price_override.trace('w', lambda a, b, c: self.on_entry_change(self.entry_price_override))
+
+        # Confidence Level
+        lbl = Label(frm, text="Confidence level:")
+        lbl.grid(row=1, column=2, padx=5, pady=(2, 5), sticky='w')
+        self.lbl_confidence_lvl = lbl
+        self.var_confidence_lvl = IntVar()
+        self.entry_confidence_lvl = ConfidenceScale(frm, variable=self.var_confidence_lvl)
+        self.entry_confidence_lvl.grid(row=1, column=3, padx=5, pady=(2, 5))
+        self.var_confidence_lvl.trace('w', lambda a, b, c: self.on_entry_change(self.entry_confidence_lvl))
+
+        self.var_5l_filters = BooleanVar(False)
+        self.cb_5l_filters = VarCheckbutton(frm, text='Enable 5L filters', variable=self.var_5l_filters)
+        self.cb_5l_filters.var = self.var_5l_filters
+        self.cb_5l_filters.grid(row=1, column=4, padx=5, pady=(2, 5), columnspan=1)
+        self.var_5l_filters.trace_variable('w', lambda a, b, c: self.on_entry_change(self.cb_5l_filters))
 
         # Tree Config
         tree = self.tree
@@ -339,6 +376,7 @@ class PricesEditor(Frame):
         self.bvar_modified = BooleanVar()
         self.bvar_modified.trace('w', lambda a, b, c: self._updateApplyState())
         self.bvar_modified.set(False)
+        self.var_advanced.set(False)
 
     def _rate_key(self, key):
         if key == 'N/A':
@@ -354,7 +392,9 @@ class PricesEditor(Frame):
             return 0
 
     def on_entry_change(self, entry):
-        if self.initial_values[entry] != entry.get():
+        val = entry.get()
+
+        if self.initial_values[entry] != val:
             self.bvar_modified.set(True)
 
     # def on_price_entry_focusout(self, widget):
@@ -386,6 +426,7 @@ class PricesEditor(Frame):
 
     def _update_modified(self):
         modified = any(entry.get() != self.initial_values[entry] for entry in self.initial_values) or self.table_modified
+
         self.bvar_modified.set(modified)
 
     def _updateApplyState(self):
@@ -418,6 +459,9 @@ class PricesEditor(Frame):
         default_fprice_override = self.entry_fprice_override.get()
         budget = self.entry_budget.get()
         min_price = self.entry_min_price.get()
+        confidence_lvl = self.entry_confidence_lvl.get() or fm.DEFAULT_CONFIDENCE_LEVEL
+        enable_5l_filters = self.var_5l_filters.get()
+
 
         price_overrides = {}
         filter_price_overrides = {}
@@ -454,7 +498,7 @@ class PricesEditor(Frame):
 
         try:
             fm.updateConfig(default_price_override, default_fprice_override, price_threshold, budget, min_price,
-                            price_overrides, filter_price_overrides, filter_state_overrides)
+                            price_overrides, filter_price_overrides, filter_state_overrides, int(confidence_lvl), enable_5l_filters)
         except AppException as e:
             messagebox.showerror('Validation error',
                                  'Failed to update configuration:\n{}'.format(e), parent=self.winfo_toplevel())
@@ -522,15 +566,32 @@ class PricesEditor(Frame):
         self.initial_values[self.entry_min_price] = fm.default_min_price
         self.initial_values[self.entry_price_override] = fm.default_price_override
         self.initial_values[self.entry_fprice_override] = fm.default_fprice_override
+        self.initial_values[self.entry_confidence_lvl] = fm.confidence_level
+        self.initial_values[self.cb_5l_filters] = fm.enable_5l_filters
 
         self.var_threshold.set(fm.price_threshold)
         self.var_budget.set(fm.budget)
         self.var_min_price.set(fm.default_min_price)
         self.var_price_override.set(fm.default_price_override)
         self.var_fprice_override.set(fm.default_fprice_override)
+        self.var_confidence_lvl.set(fm.confidence_level)
+        self.var_5l_filters.set(fm.enable_5l_filters)
 
         self.bvar_modified.set(False)
 
+    def _on_view_option_change(self):
+        advanced_widgets = [self.entry_price_override, self.lbl_price_override,
+                            self.lbl_confidence_lvl, self.entry_confidence_lvl, self.cb_5l_filters]
+        if not self.var_advanced.get():
+            for w in advanced_widgets:
+                w.grid_remove()
+            self.tree.config(displaycolumn=[PricesColumn.FilterPrice.name, PricesColumn.FilterOverride.name,
+                                            PricesColumn.EffectiveFilterPrice.name, PricesColumn.Filler.name])
+        else:
+            for w in advanced_widgets:
+                w.grid()
+            self.tree.config(displaycolumn='#all')
+        self.tree.on_entry_close()
 
 class CurrencyEditor(Frame):
     def __init__(self, master, **kwargs):
@@ -564,6 +625,7 @@ class CurrencyEditor(Frame):
         self.tree.insert('', 0, text='Exalted Orb', values=('90', '85'))
 
         frm = Frame(self.frm_currency, relief=SOLID, borderwidth=2)
+        frm.columnconfigure(10, weight=1)
         frm.grid(row=1, column=0, pady=(0, 5), sticky='nsew')
         # self.entry_currency = \
         #     Combobox_Autocomplete(frm, list_of_items=['one of many currencies'], startswith_match=False)
@@ -583,6 +645,15 @@ class CurrencyEditor(Frame):
         self.btn_apply.grid(row=2, column=2, pady=5)
         # frm.columnconfigure(3, weight=1)
         self.btn_reload.grid(row=2, column=3, sticky='e', pady=5)
+
+        # Confidence Level
+        lbl = Label(frm, text="Confidence level:")
+        lbl.grid(row=2, column=10, padx=5, sticky='nse', pady=(3, 5))
+        self.lbl_confidence_lvl = lbl
+        self.var_confidence_lvl = IntVar()
+        self.entry_confidence_lvl = ConfidenceScale(frm, variable=self.var_confidence_lvl)
+        self.entry_confidence_lvl.grid(row=2, column=11, padx=5, pady=5)
+        self.var_confidence_lvl.trace('w', lambda a, b, c: self.on_entry_change(self.entry_confidence_lvl))
 
         # Tree Config
         tree = self.tree
@@ -630,7 +701,7 @@ class CurrencyEditor(Frame):
         if not force_reload and self.bvar_modified.get():
             return
 
-        self.bvar_modified.set(False)
+        self.var_confidence_lvl.set(cm.confidence_level)
 
         tree = self.tree
         tree.clear()
@@ -644,6 +715,8 @@ class CurrencyEditor(Frame):
             tree.insert('', END, '', text=curr, values=table[curr])
 
         tree.sort_col(CurrencyColumn.EffectiveRate.name, key=float, default=0)
+
+        self.bvar_modified.set(False)
 
     def applyChanges(self, event=None):
         if not self.bvar_modified.get() or not cm.initialized:
@@ -668,6 +741,8 @@ class CurrencyEditor(Frame):
         for key in (set(cm.overrides) - ids):
             overrides[key] = cm.overrides[key]
 
+        cm.confidence_level = self.entry_confidence_lvl.get()
+
         try:
             cm.compile(overrides=overrides)
             if fm.initialized:
@@ -685,6 +760,65 @@ class CurrencyEditor(Frame):
         if not self.bvar_modified.get() and old != new:
             self.bvar_modified.set(True)
 
+    def on_entry_change(self, entry):
+        self.bvar_modified.set(True)
+
+
+class VarCheckbutton(Checkbutton):
+    def __init__(self, master, **kw):
+        super().__init__(master, **kw)
+        self.var = kw.get('variable', None)
+
+    def configure(self, cnf=None, **kw):
+        super().configure(cnf, **kw)
+        if 'variable' in kw:
+            self.var = kw['variable']
+
+    def get(self):
+        if self.var:
+            return self.var.get()
+        return None
+
+
+class ConfidenceScale(Frame):
+    def __init__(self, master, **kw):
+        super().__init__(master)
+
+        # self.grid_propagate(0)
+        # self.columnconfigure(0, weight=1)
+        # self.rowconfigure(0, weight=1)
+
+        self.var = kw.get('variable', IntVar())
+        kw['variable'] = self.var
+        kw['from_'] = ConfidenceLevel.Low.value
+        kw['to'] = ConfidenceLevel.VeryHigh.value
+        # kw['command'] = self.scale_change
+        kw['orient'] = HORIZONTAL
+
+        self.lbl_scale = Label(self)
+        self.scale = Scale(self, **kw)
+
+        self.scale_font = tkfont.nametofont(Style().lookup('TLabel', 'font')).copy()
+        self.scale_font.config(weight=tkfont.BOLD, size=9)
+        self.lbl_scale.config(font=self.scale_font, width=3, anchor=CENTER)
+        self.var.trace_variable('w', lambda a, b, c: self.scale_change())
+
+        self.scale.grid(row=0, column=0, sticky='ns')
+        self.lbl_scale.grid(row=0, column=1, sticky='ns', padx=(3, 0))
+
+    def scale_change(self):
+        rval = self.get()
+
+        if rval >= ConfidenceLevel.High:
+            fg = '#4CAF50'
+        elif rval >= ConfidenceLevel.Medium:
+            fg = '#FF9800'
+        else:
+            fg = '#FF5722'
+        self.lbl_scale.config(foreground=fg, text=str(rval))
+
+    def get(self):
+        return round(float(self.var.get()))
 
 def _validate_price(widget, accept_empty=True):
     val = widget.get()
@@ -731,11 +865,11 @@ def _to_display_rate(val):
         return int(val)
     return round(val, 2)
 
-def _is_number_or_empty(text, min=None, max=None):
+def _is_number(text, min=None, max=None, accept_empty=True):
     try:
         # text = text.strip()
         if text == '':
-            return True
+            return accept_empty
 
         if text.find(' ') != -1:
             return False

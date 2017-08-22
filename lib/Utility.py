@@ -92,6 +92,7 @@ class AppConfiguration:
         self.budget = None
         self.notify = None
         self.notify_copy_msg = None
+        self.notify_play_sound = None
         self.notification_duration = None
         self.scan_mode = None
 
@@ -144,6 +145,11 @@ class AppConfiguration:
             self.notify_copy_msg = True
 
         try:
+            self.notify_play_sound = str2bool(settings['notify_play_sound'])
+        except Exception:
+            self.notify_play_sound = True
+
+        try:
             self.notification_duration = float(settings['notification_duration'])
         except Exception:
             self.notification_duration = 4
@@ -161,6 +167,7 @@ class AppConfiguration:
         self.league = cfg.league
         self.notify = cfg.notify
         self.notify_copy_msg = cfg.notify_copy_msg
+        self.notify_play_sound = cfg.notify_play_sound
         self.notification_duration = cfg.notification_duration
         self.request_delay = cfg.request_delay
         self.scan_mode = cfg.scan_mode
@@ -174,6 +181,7 @@ class AppConfiguration:
             'request_delay': self.request_delay,
             'notify': self.notify,
             'notify_copy_msg': self.notify_copy_msg,
+            'notify_play_sound': self.notify_play_sound,
             'notification_duration': self.notification_duration,
             'scan_mode': self.scan_mode
         }
@@ -337,5 +345,22 @@ class NoIndentEncoder(json.JSONEncoder):
 def utc_to_local(utc_dt):
     return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
+def namify(text):
+    """
+    :param text: 
+    :return: text with a space before every capital letter if no capital or space precedes it 
+    """
+    return re.sub('(?<![A-Z\s])(?<!^)([A-Z])', r' \1', text)
+
+def normalize_id(text):
+    return str(text).replace(' ', '')
+
 config = AppConfiguration()
 msgr = Messenger()
+
+
+class ConfidenceLevel(IntEnum):
+    Low = 1
+    Medium = 5
+    High = 10
+    VeryHigh = 15

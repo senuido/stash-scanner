@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from json import JSONEncoder
 
 from lib.Utility import getJsonFromURL, AppException, config, NoIndent, NoIndentEncoder, logexception, msgr, \
-    utc_to_local, CompileException
+    utc_to_local, CompileException, ConfidenceLevel
 
 _PRICE_REGEX = re.compile('\s*([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 
@@ -36,7 +36,7 @@ class CurrencyManager:
         "Journeyman Cartographer's Sextant": 'journeyman sextant',
         "Master Cartographer's Sextant": 'master sextant',
         "Orb of Alchemy": 'alchemy',
-        "Orb of Alteration": 'alternation',
+        "Orb of Alteration": 'alteration',
         "Orb of Augmentation": 'augmentation',
         "Orb of Chance": 'chance',
         "Orb of Fusing": 'fusing',
@@ -52,6 +52,8 @@ class CurrencyManager:
         "Mirror of Kalandra": 'mirror'
     }
     UPDATE_INTERVAL = 10  # minutes
+    DEFAULT_CONFIDENCE_LEVEL = ConfidenceLevel.Medium.value
+    CHAOS_NAME = 'Chaos Orb'
 
     def __init__(self):
         self.init()
@@ -65,6 +67,7 @@ class CurrencyManager:
         self.cshorts = {}  # short to full name mapping
         self.crates = {}  # rates with overrides
         self.compile_lock = threading.Lock()
+        self.confidence_level = self.DEFAULT_CONFIDENCE_LEVEL
 
         self.last_update = None
 
@@ -79,6 +82,7 @@ class CurrencyManager:
             self.rates = data.get('rates', {})
             self.shorts = data.get('shorts', self.shorts)
             self.whisper = data.get('whisper', self.whisper)
+            self.confidence_level = data.get('confidence_level', self.DEFAULT_CONFIDENCE_LEVEL)
             last_update = data.get('last_update') or ''
 
             try:
@@ -100,7 +104,8 @@ class CurrencyManager:
             'rates': self.rates,
             'shorts': {k: NoIndent(v) for k, v in self.shorts.items()},
             'whisper': self.whisper,
-            'last_update': self.last_update
+            'last_update': self.last_update,
+            'confidence_level': self.confidence_level,
         }
 
         with open(CurrencyManager.CURRENCY_FNAME, "w", encoding="utf-8", errors="replace") as f:
@@ -145,6 +150,11 @@ class CurrencyManager:
         try:
             shorts = {}
             rates = {}
+
+            def get_count(currency):
+                return max(currency['receive']['count'] if currency['receive'] else 0,
+                           currency['pay']['count'] if currency['pay'] else 0)
+
             for url in CurrencyManager.CURRENCY_API:
                 data = getJsonFromURL(url.format(config.league))
 
@@ -153,7 +163,8 @@ class CurrencyManager:
 
                 if data:
                     shorts.update({currency['name']: currency['shorthands'] for currency in data["currencyDetails"]})
-                    rates.update({currency['currencyTypeName']: float(currency['chaosEquivalent']) for currency in data["lines"]})
+                    rates.update({currency['currencyTypeName']: float(currency['chaosEquivalent']) for currency in data["lines"] if get_count(currency) >= self.confidence_level})
+
 
             cur_shorts = dict(self.shorts)
             for name in cur_shorts:
@@ -175,7 +186,7 @@ class CurrencyManager:
     def convert(self, amount, short):
         if short in self.cshorts:
             currency = self.cshorts[short]
-            if currency == "Chaos Orb":
+            if currency == self.CHAOS_NAME:
                 return amount
             if currency in self.crates:
                 return amount * self.crates[self.cshorts[short]]
@@ -199,7 +210,8 @@ class CurrencyManager:
 
     def toWhisper(self, short):
         try:
-            return self.whisper[self.cshorts[short]]
+            wname = self.cshorts[short]
+            return self.whisper.get(wname, wname)
         except KeyError:
             return short
 
@@ -254,6 +266,8 @@ class CurrencyManager:
             raise
         except KeyError:
             pass
+
+        self.crates[self.CHAOS_NAME] = 1
 
     @staticmethod
     def priceFromString(price):
@@ -317,6 +331,19 @@ class CurrencyManager:
         cm.rates = {}
         cm.last_update = None
         cm.save()
+
+    def fromCCM(self, ccm):
+        self.crates = ccm.crates
+        self.cshorts = ccm.cshorts
+        self.initialized = True
+
+    def toCCM(self):
+        return CompiledCurrencyManager(dict(self.crates), dict(self.cshorts))
+
+class CompiledCurrencyManager:
+    def __init__(self, crates, cshorts):
+        self.crates = crates
+        self.cshorts = cshorts
 
 class CurrencyInfo:
     def __init__(self):

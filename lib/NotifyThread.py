@@ -48,12 +48,13 @@ class NotifyThread(threading.Thread):
             if delay > 0 and self.ntfy_queue.qsize():
                 title = "{} ({} more)".format(title, self.ntfy_queue.qsize())
 
-            try:
-                winsound.PlaySound(ALERT_FNAME, winsound.SND_ASYNC | winsound.SND_FILENAME)
-            except RuntimeError as e:
-                pass  # failed to play sound (probably because of excessive notifications)
-            except Exception as e:
-                msgr.send_msg("Error playing sound: {}".format(e), logging.ERROR)
+            if config.notify_play_sound:
+                try:
+                    winsound.PlaySound(ALERT_FNAME, winsound.SND_ASYNC | winsound.SND_FILENAME)
+                except RuntimeError as e:
+                    pass  # failed to play sound (probably because of excessive notifications)
+                except Exception as e:
+                    msgr.send_msg("Error playing sound: {}".format(e), logging.ERROR)
 
             try:
                 if not self.registered:
