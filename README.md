@@ -3,7 +3,7 @@ Stash scanner is a lightweight item search tool that works directly with PoE sta
 It serves mainly as a live search tool for sniping and flipping items  
 The project is open-source, written in Python, licensed under [GNU GPLv3](LICENSE)
 
-<img src=https://github.com/senuido/stash-scanner/raw/master/files/images/stash_scanner.jpg width=400 height=200> <img src=https://github.com/senuido/stash-scanner/raw/master/files/images/filter_editor.jpg width=400 height=200>
+<img src=https://github.com/senuido/stash-scanner/raw/master/files/images/stash_scanner.png width=400 height=200> <img src=https://github.com/senuido/stash-scanner/raw/master/files/images/filter_editor.png width=400 height=200>
 
 ## Features
 - Advanced searching capabilities, comparable to poe.trade
