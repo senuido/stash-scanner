@@ -1,156 +1,487 @@
 {
-    "last_update": "2017-08-02T23:27:57.234381",
+    "last_update": "2017-08-22T12:03:02.768179",
     "filters": [
         {
-            "title": "Good Vinktar",
-            "baseid": "",
             "criteria": {
-                "type": [
-                    "unique"
-                ],
-                "price_max": "100 chao",
-                "buyout": true,
-                "base": "topaz flask",
                 "fgs": [
                     {
-                        "type": "all",
                         "mfs": [
                             {
-                                "type": "explicit",
-                                "min": 45.0,
                                 "max": null,
-                                "expr": "Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect$"
+                                "expr": "Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect$",
+                                "min": 54.0,
+                                "type": "explicit"
                             },
                             {
-                                "type": "explicit",
-                                "min": null,
                                 "max": 85.0,
-                                "expr": "([0-9]+)% increased Charges used$"
+                                "expr": "([0-9]+)% increased Charges used$",
+                                "min": null,
+                                "type": "explicit"
                             }
-                        ]
+                        ],
+                        "type": "all"
                     }
-                ]
+                ],
+                "price_max": "+5 c"
             },
-            "category": "user",
-            "description": "example - finding vinktar with high rolls",
+            "title": "Good Spells Vinktar",
+            "id": "",
+            "baseid": "_vessel_of_vinktar_added_spells",
             "enabled": false,
-            "id": ""
+            "priority": 10.0,
+            "category": "user",
+            "description": ""
         },
         {
-            "title": "Crystal Belt i84",
-            "baseid": "",
             "criteria": {
-                "price_max": "4 exa",
+                "buyout": true,
+                "price_max": "15 c",
                 "modifiable": true,
                 "ilvl_min": 84.0,
-                "buyout": true,
                 "base": "crystal belt",
-                "type": [
+                "rarity": [
                     "normal",
                     "magic",
                     "rare"
                 ]
             },
-            "category": "user",
-            "description": "example - finding craftable crystal belt with i84+",
-            "enabled": false,
-            "id": "crystal-i84"
-        },
-        {
-            "title": "Corrupted/Mirrored Crystal Belt i84",
-            "baseid": "crystal-i84",
-            "criteria": {
-                "price_max": "/ 5",
-                "modifiable": false
-            },
-            "category": "user",
-            "description": "example - using base ID and relative prices",
-            "enabled": false,
-            "id": ""
-        },
-        {
-            "title": "Unique Crystal Belt i84",
-            "baseid": "crystal-i84",
-            "criteria": {
-                "type": [
-                    "unique"
-                ],
-                "price_max": "/20"
-            },
-            "category": "user",
-            "description": "example - using base ID and relative prices",
-            "enabled": false,
-            "id": ""
-        },
-        {
-            "title": "Pure Signal Fire",
-            "baseid": "_the_signal_fire",
-            "criteria": {
-                "corrupted": false,
-                "ilvl_max": 49.0
-            },
-            "category": "user",
-            "description": "example - using API price for your filters",
-            "enabled": false,
-            "id": ""
-        },
-        {
-            "title": "Opal Ring i84",
+            "title": "Crystal Belt i84",
+            "id": "crystal-i84",
             "baseid": "",
+            "enabled": false,
+            "priority": 10.0,
+            "category": "user",
+            "description": "example - finding craftable crystal belt with i84+"
+        },
+        {
             "criteria": {
-                "price_max": "2 ex",
+                "modifiable": false,
+                "price_max": "/ 5"
+            },
+            "title": "Corrupted/Mirrored Crystal Belt i84",
+            "id": "",
+            "baseid": "crystal-i84",
+            "enabled": false,
+            "priority": 10,
+            "category": "user",
+            "description": "example - using base ID and relative prices"
+        },
+        {
+            "criteria": {
+                "price_max": "/20",
+                "rarity": [
+                    "unique"
+                ]
+            },
+            "title": "Unique Crystal Belt i84",
+            "id": "",
+            "baseid": "crystal-i84",
+            "enabled": false,
+            "priority": 10,
+            "category": "user",
+            "description": "example - using base ID and relative prices"
+        },
+        {
+            "criteria": {
+                "buyout": true,
+                "price_max": "45 c",
                 "modifiable": true,
                 "ilvl_min": 84.0,
-                "buyout": true,
                 "base": "opal ring",
-                "type": [
+                "rarity": [
                     "normal",
                     "magic",
                     "rare"
                 ]
             },
-            "category": "user",
-            "description": "example - finding craftable opal rings with i84+",
-            "enabled": false,
-            "id": "opal-i84"
-        },
-        {
-            "title": "Corrupted/Mirrored Opal Ring i84",
-            "baseid": "opal-i84",
-            "criteria": {
-                "price_max": "/ 5",
-                "modifiable": false
-            },
-            "category": "user",
-            "description": "example - using relative prices",
-            "enabled": false,
-            "id": ""
-        },
-        {
-            "title": "Lion's Roar 35%",
+            "title": "Opal Ring i84",
+            "id": "opal-i84",
             "baseid": "",
+            "enabled": false,
+            "priority": 10,
+            "category": "user",
+            "description": "example - finding craftable opal rings with i84+"
+        },
+        {
             "criteria": {
-                "name": [
-                    "Lion's Roar"
-                ],
+                "modifiable": false,
+                "price_max": "/ 5"
+            },
+            "title": "Corrupted/Mirrored Opal Ring i84",
+            "id": "",
+            "baseid": "opal-i84",
+            "enabled": false,
+            "priority": 10,
+            "category": "user",
+            "description": "example - using relative prices"
+        },
+        {
+            "criteria": {
                 "fgs": [
                     {
-                        "type": "all",
                         "mfs": [
                             {
+                                "expr": "([0-9]+)% more Melee Physical Damage during effect$",
+                                "min": 25.0,
                                 "type": "explicit",
-                                "min": 35.0,
-                                "max": null,
-                                "expr": "([0-9]+)% more Melee Physical Damage during effect$"
+                                "max": null
                             }
-                        ]
+                        ],
+                        "type": "all"
                     }
-                ]
+                ],
+                "price_max": "+2 c"
             },
-            "category": "user",
-            "description": "example - using custom mods to complement missing mods",
+            "title": "Lion's Roar 25%",
+            "id": "",
+            "baseid": "_lion's_roar",
             "enabled": false,
-            "id": ""
+            "priority": 10.0,
+            "category": "user",
+            "description": "example - using custom mods to complement missing mods"
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "expr": "Adds ([0-9]+) to ([0-9]+) Lightning Damage to Attacks during Flask effect$",
+                                "min": 75.0,
+                                "type": "explicit",
+                                "max": null
+                            },
+                            {
+                                "expr": "([0-9]+)% increased Charges used$",
+                                "min": null,
+                                "type": "explicit",
+                                "max": 85.0
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "* 1.15"
+            },
+            "title": "Good Attacks Vinktar",
+            "id": "",
+            "baseid": "_vessel_of_vinktar_added_attacks",
+            "enabled": false,
+            "priority": 10.0,
+            "category": "user",
+            "description": "Attacks range: 67.5 - 82.5"
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "max": null,
+                                "expr": "Melee Attacks have ([0-9]+)% chance to cause Bleeding$",
+                                "min": 45.0,
+                                "type": "explicit"
+                            },
+                            {
+                                "max": null,
+                                "expr": "Melee Attacks have ([0-9]+)% chance to Poison on Hit$",
+                                "min": 35.0,
+                                "type": "explicit"
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "+3 c"
+            },
+            "title": "Good Avg Voidheart",
+            "id": "",
+            "baseid": "_voidheart",
+            "enabled": true,
+            "priority": 10.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "max": null,
+                                "expr": "Melee Attacks have ([0-9]+)% chance to cause Bleeding$",
+                                "min": 40.0,
+                                "type": "explicit"
+                            },
+                            {
+                                "max": null,
+                                "expr": "Melee Attacks have ([0-9]+)% chance to Poison on Hit$",
+                                "min": 40.0,
+                                "type": "explicit"
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "+5 c"
+            },
+            "title": "Poison Voidheart",
+            "id": "",
+            "baseid": "_voidheart",
+            "enabled": true,
+            "priority": 12.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "max": null,
+                                "expr": "Melee Attacks have ([0-9]+)% chance to cause Bleeding$",
+                                "min": 50.0,
+                                "type": "explicit"
+                            },
+                            {
+                                "max": null,
+                                "expr": "Melee Attacks have ([0-9]+)% chance to Poison on Hit$",
+                                "min": 32.0,
+                                "type": "explicit"
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "+4 c"
+            },
+            "title": "Bleed Voidheart",
+            "id": "",
+            "baseid": "_voidheart",
+            "enabled": true,
+            "priority": 11.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "expr": "\\+([0-9]+) to all Attributes$",
+                                "min": 97.0,
+                                "type": "explicit",
+                                "max": null
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "+10 c"
+            },
+            "title": "Good Astramentis",
+            "id": "",
+            "baseid": "_astramentis",
+            "enabled": false,
+            "priority": 10.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "max": null,
+                                "expr": "Gain ([0-9]+)% of Elemental Damage as Extra Chaos Damage during effect$",
+                                "min": null,
+                                "type": "explicit"
+                            },
+                            {
+                                "max": null,
+                                "expr": "Gain ([0-9]+)% of Physical Damage as Extra Chaos Damage during effect$",
+                                "min": 20.0,
+                                "type": "explicit"
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "2 c"
+            },
+            "title": "Phys Atziri's Promise",
+            "id": "",
+            "baseid": "_atziri's_promise",
+            "enabled": false,
+            "priority": 10,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "expr": "([0-9]+)% increased Quantity of Items Dropped by Slain Normal Enemies$",
+                                "min": 90.0,
+                                "type": "explicit",
+                                "max": null
+                            },
+                            {
+                                "expr": "([0-9]+)% increased Rarity of Items Dropped by Slain Magic Enemies$",
+                                "min": null,
+                                "type": "explicit",
+                                "max": null
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "+10 c"
+            },
+            "title": "IIQ Bisco's",
+            "id": "",
+            "baseid": "_bisco's_collar",
+            "enabled": false,
+            "priority": 10.0,
+            "category": "user",
+            "description": "(100-150)% Rarity, (50-100)% IIQ"
+        },
+        {
+            "criteria": {
+                "buyout": true,
+                "links_min": 6.0,
+                "price_max": "0.8 div"
+            },
+            "title": "Cheap 6-Link",
+            "id": "",
+            "baseid": "",
+            "enabled": false,
+            "priority": 11.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "expr": "\\+([0-9]+)% to all Elemental Resistances$",
+                                "min": 14.0,
+                                "type": "explicit",
+                                "max": null
+                            },
+                            {
+                                "expr": "([0-9]+)% increased maximum Life$",
+                                "min": 37.0,
+                                "type": "explicit",
+                                "max": null
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "* 1.1"
+            },
+            "title": "Good Belly",
+            "id": "",
+            "baseid": "_belly_of_the_beast",
+            "enabled": false,
+            "priority": 10.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "expr": "\\+([0-9]+)% to all Elemental Resistances$",
+                                "min": 12.0,
+                                "type": "explicit",
+                                "max": null
+                            },
+                            {
+                                "expr": "([0-9]+)% increased maximum Life$",
+                                "min": 40.0,
+                                "type": "explicit",
+                                "max": null
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "* 1.15"
+            },
+            "title": "Max Life Belly",
+            "id": "",
+            "baseid": "_belly_of_the_beast",
+            "enabled": false,
+            "priority": 11.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "name": [
+                    "Steel Ring"
+                ],
+                "buyout": true,
+                "modifiable": true,
+                "price_max": "15 c"
+            },
+            "title": "Steel ring",
+            "id": "steel_ring",
+            "baseid": "",
+            "enabled": false,
+            "priority": 10.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "ilvl_min": 84.0,
+                "price_max": "+ 10 c"
+            },
+            "title": "Steel Ring i84",
+            "id": "",
+            "baseid": "steel_ring",
+            "enabled": false,
+            "priority": 11.0,
+            "category": "user",
+            "description": ""
+        },
+        {
+            "criteria": {
+                "fgs": [
+                    {
+                        "mfs": [
+                            {
+                                "expr": "\\+([0-9]+) to all Attributes$",
+                                "min": 100.0,
+                                "type": "explicit",
+                                "max": null
+                            }
+                        ],
+                        "type": "all"
+                    }
+                ],
+                "price_max": "+20 c"
+            },
+            "title": "Perfect Astramentis",
+            "id": "",
+            "baseid": "_astramentis",
+            "enabled": false,
+            "priority": 11.0,
+            "category": "user",
+            "description": ""
         }
-    ]
+    ],
+    "version": 2
 }
