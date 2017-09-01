@@ -84,7 +84,12 @@ class SearchParams:
         # sp.altart = None
 
         sp.identified = cf.identified
-        sp.corrupted = cf.corrupted if cf.corrupted is not None else cf.modifiable
+
+        if cf.corrupted is not None:
+            sp.corrupted = cf.corrupted
+        elif cf.modifiable is not None:
+            sp.corrupted = not cf.modifiable
+
         sp.crafted = cf.crafted
         sp.enchanted = cf.enchanted
 

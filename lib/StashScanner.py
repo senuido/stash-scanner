@@ -193,7 +193,7 @@ class StashScanner:
             if latest_id:
                 self.stateMgr.saveState(latest_id)
             else:
-                raise AppException("Failed retrieving latest ID from API", logging.ERROR)
+                raise AppException("Failed retrieving latest ID from API")
 
         stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
 

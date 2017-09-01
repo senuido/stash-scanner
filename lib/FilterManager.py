@@ -250,6 +250,7 @@ class FilterManager:
                             rarity = None
 
                         crit['buyout'] = True
+                        crit['corrupted'] = False
                         links = item['links']
                         title = "{} {} {}".format(
                             'Legacy' if rarity == ItemRarity.Relic else '',
