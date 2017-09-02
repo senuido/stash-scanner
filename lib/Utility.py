@@ -192,17 +192,23 @@ class AppConfiguration:
         with open(AppConfiguration.CONFIG_FNAME, mode="w") as f:
             parser.write(f)
 
-def getJsonFromURL(url, handle=None, max_attempts=1):
+
+def getBytesFromURL(url, handle=None, max_attempts=1, connect_timeout=None, timeout=None, gzip=True):
     if not handle:
         handle = pycurl.Curl()
 
     url = quote(url, safe=':/?=')
 
-    buffer = BytesIO()
+    b = BytesIO()
     handle.setopt(handle.URL, url)
+    if connect_timeout:
+        handle.setopt(handle.CONNECTTIMEOUT, connect_timeout)
+    if timeout:
+        handle.setopt(handle.TIMEOUT, timeout)
     # handle.setopt(handle.VERBOSE, 1)
-    handle.setopt(handle.ENCODING, 'gzip, deflate')
-    handle.setopt(handle.WRITEFUNCTION, buffer.write)
+    if gzip:
+        handle.setopt(handle.ENCODING, 'gzip, deflate')
+    handle.setopt(handle.WRITEFUNCTION, b.write)
 
     attempts = 0
 
@@ -212,13 +218,47 @@ def getJsonFromURL(url, handle=None, max_attempts=1):
 
         handle.perform()
         if handle.getinfo(handle.RESPONSE_CODE) == 200:
-            return json.loads(buffer.getvalue().decode())
+            return b
 
         attempts += 1
         msgr.send_tmsg("HTTP Code: {} while trying to retrieve URL: {}"
                        .format(handle.getinfo(handle.RESPONSE_CODE), url), logging.WARN)
 
     return None
+
+def getJsonFromURL(url, handle=None, max_attempts=1, gzip=True):
+    b = getBytesFromURL(url, handle, max_attempts=max_attempts, gzip=gzip)
+    if b is None:
+        return None
+    return json.loads(b.getvalue().decode())
+
+# def getJsonFromURL(url, handle=None, max_attempts=1):
+#     if not handle:
+#         handle = pycurl.Curl()
+#
+#     url = quote(url, safe=':/?=')
+#
+#     buffer = BytesIO()
+#     handle.setopt(handle.URL, url)
+#     # handle.setopt(handle.VERBOSE, 1)
+#     handle.setopt(handle.ENCODING, 'gzip, deflate')
+#     handle.setopt(handle.WRITEFUNCTION, buffer.write)
+#
+#     attempts = 0
+#
+#     while attempts < max_attempts:
+#         if attempts > 0:
+#             time.sleep(2)
+#
+#         handle.perform()
+#         if handle.getinfo(handle.RESPONSE_CODE) == 200:
+#             return json.loads(buffer.getvalue().decode())
+#
+#         attempts += 1
+#         msgr.send_tmsg("HTTP Code: {} while trying to retrieve URL: {}"
+#                        .format(handle.getinfo(handle.RESPONSE_CODE), url), logging.WARN)
+#
+#     return None
 
 
 def getDataFromUrl(url, callback, max_attempts=1):

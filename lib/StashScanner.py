@@ -1,26 +1,30 @@
+import itertools
 import json
 import logging
 import os
 import pycurl
 import time
+from contextlib import closing
 from datetime import datetime
-from itertools import chain
 from multiprocessing.pool import Pool
 from threading import Event
 from urllib.parse import urljoin
 
-import lib.UpdateThread as ut
+import requests
+
+from lib.UpdateThread import UpdateThread
 from lib.CompiledFilter import CompiledFilter
+from lib.CurrencyManager import cm
 from lib.FilterManager import fm
 from lib.ItemHelper import *
-from lib.ModFilterGroup import FilterGroupType
-from lib.ModsHelper import mod_helper
+from lib.ItemHelper import Item, ItemType, ItemSocket, ItemProperty
 from lib.NotifyThread import NotifyThread
+from lib.ParserThread import ParserThread
 from lib.SearchParams import SearchParams
-from lib.StashHelper import get_stash_price_raw, parse_next_id, parse_stashes_parallel
+from lib.StashHelper import parse_next_id, parse_stashes_parallel, get_stash_price_raw
 from lib.StateManager import StateManager
-from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception, getBaseUrl, dround, isAbsoluteUrl, \
-    RE_COMPILED_TYPE
+from lib.Utility import config, AppException, getJsonFromURL, msgr, logexception, getBytesFromURL, isAbsoluteUrl, \
+    dround, getBaseUrl
 
 # import pstats
 # from io import StringIO
@@ -39,11 +43,18 @@ class StashScanner:
     def __init__(self):
         self.notifier = NotifyThread()
         self.stateMgr = StateManager()
+        self.parser = None
         self._stop = Event()
         # self._stopped = Event()
 
         self.poe_api_url = None
         self.league = None
+
+    def stop(self):
+        self._stop.set()
+
+    # def is_stopped(self):
+    #     return self._stopped.is_set()
 
     def handleResult(self, item, stash, fltr):
         whisper_msg = item.get_whisper_msg(stash)
@@ -58,19 +69,15 @@ class StashScanner:
         try:
             item_info = ItemResult(item, stash, getBaseUrl(self.poe_api_url), fltr)
         except (KeyError, IndexError) as e:
-            msgr.send_msg("Unexpected error while processing item {}. Item details will not be provided.".format(item.name), logging.WARN)
+            msgr.send_msg(
+                "Unexpected error while processing item {}. Item details will not be provided.".format(item.name),
+                logging.WARN)
             item_info = None
             logexception()
             with open(ITEM_ERROR_FNAME, mode='w') as f:
                 json.dump(item, f, indent=4, separators=(',', ': '))
 
         msgr.send_msg(whisper_msg, tag=item_info)
-
-    def stop(self):
-        self._stop.set()
-
-    # def is_stopped(self):
-    #     return self._stopped.is_set()
 
     def start(self):
 
@@ -85,8 +92,12 @@ class StashScanner:
             msgr.send_msg('Unexpected exception: {}. Error details logged to file.'.format(e), logging.ERROR)
             logexception()
         finally:
+            self.stop()
             self.notifier.close()
             self.stateMgr.close()
+            if self.parser:
+                self.parser.join()
+            self.notifier.join()
             msgr.send_msg("Scanning stopped")
             msgr.send_stopped()
             # self._stopped.set()
@@ -100,15 +111,9 @@ class StashScanner:
         if is_beta:
             self.poe_api_url = POE_BETA_API
             self.league = re.sub('beta ', '', config.league, flags=re.IGNORECASE)
-            ninja_api_nextid_field = 'nextBetaChangeId'
         else:
             self.poe_api_url = POE_API
             self.league = config.league
-            ninja_api_nextid_field = 'nextChangeId'
-
-        # cm.load()
-        # if cm.initialized:
-        #     msgr.send_msg("Currency information loaded successfully.", logging.INFO)
 
         # assertions
         if not cm.initialized:
@@ -125,11 +130,6 @@ class StashScanner:
                 if cm.initialized:
                     msgr.send_msg('Using currency information from a local copy..', logging.WARN)
 
-        # if not cm.initialized:
-        #     raise AppException("Failed to load currency information.")
-
-        # filterFallback = False
-
         if fm.needUpdate:
             try:
                 msgr.send_msg("Generating filters from API..")
@@ -137,24 +137,6 @@ class StashScanner:
             except AppException as e:
                 # filterFallback = True
                 msgr.send_msg(e, logging.ERROR)
-
-        # if filterFallback:
-        #     try:
-        #         msgr.send_msg("Loading generated filters from a local copy..", logging.WARN)
-        #         fm.loadAutoFilters()
-        #     except AppException as e:
-        #         msgr.send_msg(e, logging.ERROR)
-
-        # msgr.send_msg("Loading user filters..")
-        # fm.loadUserFilters()
-        # msgr.send_msg("Validating filters..")
-        # verrors = fm.validateFilters()
-
-        # for e in verrors:
-        #     msgr.send_msg(e, logging.ERROR)
-        #
-        # if verrors:
-        #     raise AppException("Error while validating filters. Correct the errorrs using the editor and start again. Stopping..")
 
         msgr.send_msg('Compiling filters..', logging.INFO)
         fm.compileFilters(force_validation=True)
@@ -168,47 +150,29 @@ class StashScanner:
         if self.stateMgr.getChangeId() == "" or str(config.scan_mode).lower() == "latest":
             msgr.send_msg("Fetching latest id from API..")
 
-            latest_id = None
-            failed_attempts = 0
-            sleep_time = 0
-
-            while not self._stop.wait(sleep_time) and not latest_id:
-                try:
-                    data = getJsonFromURL(NINJA_API)
-                    if data is None:
-                        msgr.send_msg("Error retrieving latest id from API, bad response", logging.WARN)
-                    elif ninja_api_nextid_field not in data:
-                        raise AppException(
-                            "Error retrieving latest id from API, missing {} key".format(ninja_api_nextid_field))
-                    else:
-                        latest_id = data[ninja_api_nextid_field]
-                        break
-                except pycurl.error as e:
-                    errno, msg = e.args
-                    msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
-                finally:
-                    failed_attempts += 1
-                    sleep_time = min(2 ** failed_attempts, 30)
+            latest_id = self._get_latest_id(is_beta)
 
             if latest_id:
                 self.stateMgr.saveState(latest_id)
             else:
                 raise AppException("Failed retrieving latest ID from API")
 
-        stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
-
-        updater = ut.UpdateThread(self._stop, fm, 10 * 60)
+        updater = UpdateThread(self._stop, fm, 10 * 60)
         updater.start()
         self.notifier.start()
 
         c = pycurl.Curl()
-        lastId = ""
-        ahead = False
-        data = ""
+        # lastId = ""
+        reached_end = False
+        last_reached_end = None
+        # data = ""
         last_req = 0
         delay_time = 0
         num_cores = os.cpu_count() or 1
         failed_attempts = 0
+
+        self.parser = ParserThread(self._stop, num_cores, self.league, self.stateMgr, self.handleResult)
+        self.parser.start()
 
         def get_sleep_time():
             if failed_attempts:
@@ -219,93 +183,224 @@ class StashScanner:
 
             return sleep_time
 
-        # pr = cProfile.Profile()
-        # pr.enable()
+        def peek_id(data):
+            m = re.search(b'"next_change_id":\s*"([0-9\-]+)"', data)
+            if m:
+                return m.group(1).decode()
+            return None
 
+        request_id = self.stateMgr.getChangeId()
+        b_parser_wait = False
+        climb = True
+        climb_count = 0
         msgr.send_msg("Scanning started")
-        with Pool(processes=num_cores) as pool:
-            while not self._stop.wait(get_sleep_time()):
-                try:
-                    msgr.send_update_id(self.stateMgr.getChangeId())
-                    data_count = (0, 0, 0)
+
+        def get_delta(prev_id, curr_id):
+            l1 = [int(n) for n in prev_id.split('-')]
+            l2 = [int(n) for n in curr_id.split('-')]
+            return sum(map(lambda x, y: int(y) - int(x), l1, l2))
+
+
+        res = []
+        # params = {}
+        delta = 0
+        while not reached_end and climb_count < 200:
+            # params['id'] = request_id
+            sx = time.time()
+
+            try:
+                with closing(requests.get(self.poe_api_url.format(request_id), stream=True, timeout=3)) as r:
+                    # r.raw.decode_content = True
+
+                    for chunk in r.iter_content(chunk_size=1024):
+                        if chunk:  # filter out keep-alive new chunks
+                            next_id = peek_id(chunk)
+                            if next_id is None:
+                                print(chunk)
+                            elif next_id != request_id:
+                                delta = get_delta(request_id, next_id)
+                                request_id = next_id
+                                climb_count += 1
+                            else:
+                                reached_end = True
+                            break
+            except requests.exceptions.Timeout as e:
+                print('Timeout: {}'.format(e))
+            except requests.RequestException as e:
+                print(e)
+            else:
+                sy = time.time()
+                res.append(sy-sx)
+                print('ID: {}, time: {}s, delta: {}'.format(request_id, sy-sx, delta))
+
+        if res:
+            print('Average DL: {}s'.format(sum(res) / len(res)))
+
+        while not self._stop.wait(get_sleep_time()):
+            try:
+                msgr.send_update_id(request_id)
+                stashUrl = self.poe_api_url.format(request_id)
+
+                # if climb:
+
+
+                if self.parser.queue.qsize() > 5:
+                    if not self.parser.is_alive():
+                        msgr.send_msg("Parser thread ended abruptly. Restarting it..", logging.WARN)
+                        self.parser = ParserThread(self._stop, num_cores, self.league, self.stateMgr, self.handleResult)
+                        self.parser.start()
+                    if not b_parser_wait:
+                        msgr.send_msg("Parser is not keeping up with the request rate. "
+                                      "This can put you behind on the data. Waiting for parser..", logging.WARN)
+                        b_parser_wait = True
+                else:
+                    b_parser_wait = False
+
 
                     last_req = time.time()
-                    data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
+                    data = getBytesFromURL(stashUrl, handle=c, max_attempts=1)
                     dl_time = time.time() - last_req
 
                     if data is None:
                         msgr.send_tmsg("Invalid response while retrieving stash data.", logging.ERROR)
-                        # sleep_time = 2
                         failed_attempts += 1
                         continue
 
-                    if "error" in data:
-                        msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
-                        # c.close()
+                    next_id = peek_id(data.getbuffer()[:512])
+                    if not next_id:
+                        msgr.send_tmsg("Full peek", logging.DEBUG)
+                        next_id = peek_id(data.getvalue())
+
+                    if not next_id:
+                        data = json.loads(data.getvalue().decode())
+                        if "error" in data:
+                            msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
+                        else:
+                            msgr.send_tmsg("ID peek failed and no error response was received.\n{}".format(data.getvalue().decode()), logging.WARN)
+                        c.close()
                         c = pycurl.Curl()
-                        # sleep_time = 10
                         failed_attempts += 1
                         continue
 
-                    # Process if its the first time we're in this id
-                    curId = self.stateMgr.getChangeId()
+                    self.parser.put(request_id, data)
 
-                    last_parse = time.time()
-
-                    if lastId != curId:
-                        # snapshot filters and currency information
-                        with cm.compile_lock:
-                            filters = fm.getActiveFilters()
-                            c_budget = cm.compilePrice(fm.budget) if fm.budget else None
-                            ccm = cm.toCCM()
-
-                        if not len(filters):
-                            msgr.send_msg("No filters are active. Stopping..")
-                            # self._stop.set()
-                            # continue
-                            break
-
-                        # pr.enable()
-                        data_count = parse_stashes_parallel(data, filters, ccm, self.league, c_budget, self.stateMgr, self.handleResult, num_cores, pool)
-                        # pr.disable()
-                    else:
-                        parse_next_id(data, self.stateMgr)
-
-                        if not ahead:
+                    if request_id == next_id:
+                        if not reached_end:
                             msgr.send_msg("Reached the end of the river..", logging.INFO)
-                            ahead = True
+                            reached_end = True
+                        last_reached_end = datetime.now()
 
-                    lastId = curId
-                    stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
-
-                    parse_time = time.time() - last_parse
+                    request_id = next_id
 
                     delta = time.time() - last_req
                     delay_time = max(float(config.request_delay) - delta, 0)
-                    msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s, "
-                                  "Tabs: {}, League tabs: {}, Items: {}"
-                                  .format(delta, dl_time, parse_time, delay_time, *data_count), logging.DEBUG)
-
                     failed_attempts = 0
 
-                except pycurl.error as e:
-                    errno, msg = e.args
-                    msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
-                    c.close()
-                    c = pycurl.Curl()
-                    # sleep_time = 5
-                    failed_attempts += 1
-                    continue
-                except Exception as e:
-                    msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
-                    logexception()
-                    with open(JSON_ERROR_FNAME, "w") as f:
-                        json.dump(data, f, indent=4, separators=(',', ': '))
+                    msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Sleeping: {:.3f}s"
+                                  .format(delta, dl_time, delay_time), logging.DEBUG)
 
-                    c.close()
-                    c = pycurl.Curl()
-                    failed_attempts += 1
-                    # sleep_time = 10
+            except pycurl.error as e:
+                errno, msg = e.args
+                msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
+                c.close()
+                c = pycurl.Curl()
+                failed_attempts += 1
+                continue
+
+            except Exception as e:
+                msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
+                logexception()
+                # with open(JSON_ERROR_FNAME, "w") as f:
+                #     json.dump(data, f, indent=4, separators=(',', ': '))
+                c.close()
+                c = pycurl.Curl()
+                failed_attempts += 1
+
+        # msgr.send_msg("Scanning started")
+        # with Pool(processes=num_cores) as pool:
+        #     while not self._stop.wait(get_sleep_time()):
+        #         try:
+        #             msgr.send_update_id(self.stateMgr.getChangeId())
+        #             # data_count = (0, 0, 0)
+        #
+        #             last_req = time.time()
+        #             data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
+        #             dl_time = time.time() - last_req
+        #
+        #             if data is None:
+        #                 msgr.send_tmsg("Invalid response while retrieving stash data.", logging.ERROR)
+        #                 # sleep_time = 2
+        #                 failed_attempts += 1
+        #                 continue
+        #
+        #             if "error" in data:
+        #                 msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
+        #                 # c.close()
+        #                 c = pycurl.Curl()
+        #                 # sleep_time = 10
+        #                 failed_attempts += 1
+        #                 continue
+        #
+        #             # Process if its the first time we're in this id
+        #             curId = self.stateMgr.getChangeId()
+        #
+        #             last_parse = time.time()
+        #
+        #             if lastId != curId:
+        #                 # snapshot filters and currency information
+        #                 with cm.compile_lock:
+        #                     filters = fm.getActiveFilters()
+        #                     c_budget = cm.compilePrice(fm.budget) if fm.budget else None
+        #                     ccm = cm.toCCM()
+        #
+        #                 if not len(filters):
+        #                     msgr.send_msg("No filters are active. Stopping..")
+        #                     # self._stop.set()
+        #                     # continue
+        #                     break
+        #
+        #                 # pr.enable()
+        #                 data_count = parse_stashes_parallel(data, filters, ccm, self.league, c_budget, self.stateMgr,
+        #                                                     self.handleResult, num_cores, pool)
+        #                 # pr.disable()
+        #             else:
+        #                 parse_next_id(data, self.stateMgr)
+        #
+        #                 if not reached_end:
+        #                     msgr.send_msg("Reached the end of the river..", logging.INFO)
+        #                     reached_end = True
+        #
+        #             lastId = curId
+        #             stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
+        #
+        #             parse_time = time.time() - last_parse
+        #
+        #             delta = time.time() - last_req
+        #             delay_time = max(float(config.request_delay) - delta, 0)
+        #             msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s, "
+        #                           "Tabs: {}, League tabs: {}, Items: {}"
+        #                           .format(delta, dl_time, parse_time, delay_time, *data_count), logging.DEBUG)
+        #
+        #             failed_attempts = 0
+        #
+        #         except pycurl.error as e:
+        #             errno, msg = e.args
+        #             msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
+        #             c.close()
+        #             c = pycurl.Curl()
+        #             # sleep_time = 5
+        #             failed_attempts += 1
+        #             continue
+        #         except Exception as e:
+        #             msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
+        #             logexception()
+        #             with open(JSON_ERROR_FNAME, "w") as f:
+        #                 json.dump(data, f, indent=4, separators=(',', ': '))
+        #
+        #             c.close()
+        #             c = pycurl.Curl()
+        #             failed_attempts += 1
+        #             # sleep_time = 10
 
         # pr.disable()
         # s = StringIO()
@@ -314,6 +409,36 @@ class StashScanner:
         # ps.print_stats()
         # print(s.getvalue())
 
+    def _get_latest_id(self, is_beta):
+        latest_id = None
+        failed_attempts = 0
+        sleep_time = 0
+
+        if is_beta:
+            ninja_api_nextid_field = 'nextBetaChangeId'
+        else:
+            ninja_api_nextid_field = 'nextChangeId'
+
+        while not self._stop.wait(sleep_time) and not latest_id:
+            try:
+                data = getJsonFromURL(NINJA_API)
+                if data is None:
+                    msgr.send_msg("Error retrieving latest id from API, bad response", logging.WARN)
+                elif ninja_api_nextid_field not in data:
+                    raise AppException(
+                        "Error retrieving latest id from API, missing {} key".format(ninja_api_nextid_field))
+                else:
+                    latest_id = data[ninja_api_nextid_field]
+                    break
+            except pycurl.error as e:
+                errno, msg = e.args
+                msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
+            finally:
+                failed_attempts += 1
+                sleep_time = min(2 ** failed_attempts, 30)
+
+        return latest_id
+
     @staticmethod
     def clearLeagueData():
         fm.clearCache()
@@ -321,9 +446,6 @@ class StashScanner:
         StateManager.clearCache()
 
 
-
-# used to expose specific item result info to ui
-# intentionally throws exceptions so we're forced to update enums when changes are made
 class ItemResult:
     def __init__(self, item, stash, baseUrl, cf):
         if not isinstance(item, Item):
