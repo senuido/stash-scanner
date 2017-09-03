@@ -1,37 +1,43 @@
-import functools
-import logging
-import multiprocessing
-import os
-import pycurl
-import queue
-import threading
-import tkinter.font as tkfont
-import webbrowser
-from concurrent.futures import ThreadPoolExecutor
-from idlelib.WidgetRedirector import WidgetRedirector
-from queue import Queue
-from threading import Thread, Lock
-from tkinter import *
-from tkinter import messagebox
-from tkinter.ttk import *
+try:
+    import functools
+    import logging
+    import multiprocessing
+    import os
+    import pycurl
+    import queue
+    import threading
+    import tkinter.font as tkfont
+    import webbrowser
+    from concurrent.futures import ThreadPoolExecutor
+    from idlelib.WidgetRedirector import WidgetRedirector
+    from queue import Queue
+    from threading import Thread, Lock
+    from tkinter import *
+    from tkinter import messagebox
+    from tkinter.ttk import *
 
-import PIL.Image
-import PIL.ImageTk
+    import PIL.Image
+    import PIL.ImageTk
 
-from lib.CurrencyManager import CurrencyInfo, cm, CurrencyManager
-from lib.FilterManager import FiltersInfo, fm, FILTERS_CFG_FNAME
-from lib.ItemCollection import ItemCollection
-from lib.ItemFilter import Filter
-from lib.ItemHelper import ItemType, PropDisplayMode, ItemSocketType
-from lib.ModsHelper import mod_helper
-from lib.StashScanner import StashScanner, ItemResult
-from lib.Utility import MsgType, msgr, getDataFromUrl, round_up, AppException, getJsonFromURL, config, AppConfiguration, \
-    logexception, dround
-from ui.ConfigEditor import ConfigEditor
-from ui.FilterEditor import FilterEditor
-from ui.LoadingScreen import LoadingScreen
-from ui.ScrollingFrame import AutoScrollbar
-from ui.TextButton import TextButton
+    from lib.CurrencyManager import CurrencyInfo, cm, CurrencyManager
+    from lib.FilterManager import FiltersInfo, fm, FILTERS_CFG_FNAME
+    from lib.ItemCollection import ItemCollection
+    from lib.ItemFilter import Filter
+    from lib.ItemHelper import ItemType, PropDisplayMode, ItemSocketType
+    from lib.ModsHelper import mod_helper
+    from lib.StashScanner import StashScanner, ItemResult
+    from lib.Utility import MsgType, msgr, getDataFromUrl, round_up, AppException, getJsonFromURL, config, AppConfiguration, \
+        logexception, dround
+    from ui.ConfigEditor import ConfigEditor
+    from ui.FilterEditor import FilterEditor
+    from ui.LoadingScreen import LoadingScreen
+    from ui.ScrollingFrame import AutoScrollbar
+    from ui.TextButton import TextButton
+except Exception as e:
+    import logging
+    logging.basicConfig(filename='startup_error.log', level=logging.DEBUG) # in-case logger was not set-up, fallback
+    logging.error("Error while importing modules: {}".format(e), exc_info=1)
+    exit(1)
 
 class AppGUI(Tk):
 
@@ -153,6 +159,16 @@ class AppGUI(Tk):
         self.title("Stash Scanner by Senu {}".format(self.VERSION_NUMBER))
 
         try:
+            config.load()
+        except AppException as e:
+            try:
+                config.load_default()
+                messagebox.showwarning('Config warning', '{}\nDefault settings will be used instead.'.format(e), parent=self)
+            except AppException as e:
+                messagebox.showerror('Config error', e, parent=self)
+                return
+
+        try:
             self.iconbitmap(default='res\\app.ico')
             ItemDisplay.init()
             Filter.init()
@@ -174,14 +190,14 @@ class AppGUI(Tk):
             # self.start_scan()
             self.initialized = True
 
-        self.geometry("1366x768")
-        self.create_widgets()
-        self.center()
+            self.geometry("1366x768")
+            self.create_widgets()
+            self.center()
 
-        self.deiconify()
-        self.wait_visibility()
+            self.deiconify()
+            self.wait_visibility()
 
-        self.state('zoomed')
+            self.state('zoomed')
 
     def _check_version(self):
         try:
@@ -1597,7 +1613,7 @@ class ItemDisplay:
     def openSearch(self, params=None):
         form = self.getRequestFormString(params)
         temp_file = 'tmp\\search.htm'
-        with open(temp_file, 'w') as f:
+        with open(temp_file, 'w', encoding='utf-8') as f:
             f.write(form)
             f.flush()
 
@@ -1626,9 +1642,14 @@ class ItemDisplay:
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     logger = logging.getLogger('ui')
-    app = AppGUI()
 
-    if app.initialized:
-        app.mainloop()
+    try:
+        app = AppGUI()
 
-    app.quit()
+        if app.initialized:
+            app.mainloop()
+
+        app.quit()
+    except Exception as e:
+        logger.error('Application closed with error: {}'.format(e), exc_info=1)
+

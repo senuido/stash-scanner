@@ -85,7 +85,7 @@ class AppConfiguration:
     section_name = 'Settings'
     # section_names = ['Settings']
 
-    def __init__(self, load=True):
+    def __init__(self):
 
         self.league = None
         self.request_delay = None
@@ -96,8 +96,8 @@ class AppConfiguration:
         self.notification_duration = None
         self.scan_mode = None
 
-        if load:
-            self.load()
+        # if load:
+        #     self.load()
 
         # parser = ConfigParser()
         # #parser.optionxform = str  # make option names case sensitive
@@ -123,11 +123,28 @@ class AppConfiguration:
 
     def load(self):
         parser = ConfigParser()
-        found = parser.read(AppConfiguration.CONFIG_FNAME)
-
         settings = {}
-        if found and self.section_name in parser.sections():
-            settings = parser[self.section_name]
+
+        try:
+            found = parser.read(AppConfiguration.CONFIG_FNAME)
+            if found and self.section_name in parser.sections():
+                settings = parser[self.section_name]
+        except Exception:
+            msg = 'Error loading app settings from {}. Error details logged to file.'.format(AppConfiguration.CONFIG_FNAME)
+            logger.error(msg)
+            logexception()
+            raise AppException(msg)
+
+        self._load_settings(settings)
+        self.save()
+
+    def load_default(self):
+        self._load_settings()
+        self.save()
+
+    def _load_settings(self, settings=None):
+        if settings is None:
+            settings = {}
 
         try:
             self.request_delay = float(settings['request_delay'])
@@ -158,8 +175,6 @@ class AppConfiguration:
         self.league = settings.get('league', 'Standard')
         self.scan_mode = settings.get('scan_mode', 'Latest')
 
-        self.save()
-
     def update(self, cfg):
         if not isinstance(cfg, AppConfiguration):
             raise TypeError('cfg must be of type AppConfiguration')
@@ -188,9 +203,17 @@ class AppConfiguration:
 
         parser[self.section_name] = values
 
-        os.makedirs(os.path.dirname(AppConfiguration.CONFIG_FNAME), exist_ok=True)
-        with open(AppConfiguration.CONFIG_FNAME, mode="w") as f:
-            parser.write(f)
+        try:
+            os.makedirs(os.path.dirname(AppConfiguration.CONFIG_FNAME), exist_ok=True)
+            with open(AppConfiguration.CONFIG_FNAME, mode="w") as f:
+                parser.write(f)
+        except PermissionError as e:
+            raise AppException('Failed saving app settings to file.\n{}: {}'.format(e.strerror, e.filename))
+        except Exception as e:
+            msg = 'Failed saving app settings to file. {}'.format(e)
+            logger.error(msg)
+            logexception()
+            raise AppException(msg)
 
 
 def getBytesFromURL(url, handle=None, max_attempts=1, connect_timeout=None, timeout=None, gzip=True):
@@ -397,7 +420,6 @@ def normalize_id(text):
 
 config = AppConfiguration()
 msgr = Messenger()
-
 
 class ConfidenceLevel(IntEnum):
     Low = 1

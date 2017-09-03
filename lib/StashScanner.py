@@ -146,10 +146,11 @@ class StashScanner:
         if not len(filters):
             raise AppException("No filters are active. Stopping..")
 
+        climb = False
         self.stateMgr.loadState()
         if self.stateMgr.getChangeId() == "" or str(config.scan_mode).lower() == "latest":
             msgr.send_msg("Fetching latest id from API..")
-
+            climb = True # use config val
             latest_id = self._get_latest_id(is_beta)
 
             if latest_id:
@@ -162,10 +163,8 @@ class StashScanner:
         self.notifier.start()
 
         c = pycurl.Curl()
-        # lastId = ""
         reached_end = False
         last_reached_end = None
-        # data = ""
         last_req = 0
         delay_time = 0
         num_cores = os.cpu_count() or 1
@@ -183,224 +182,160 @@ class StashScanner:
 
             return sleep_time
 
-        def peek_id(data):
-            m = re.search(b'"next_change_id":\s*"([0-9\-]+)"', data)
-            if m:
-                return m.group(1).decode()
-            return None
-
         request_id = self.stateMgr.getChangeId()
-        b_parser_wait = False
-        climb = True
-        climb_count = 0
-        msgr.send_msg("Scanning started")
 
         def get_delta(prev_id, curr_id):
             l1 = [int(n) for n in prev_id.split('-')]
             l2 = [int(n) for n in curr_id.split('-')]
             return sum(map(lambda x, y: int(y) - int(x), l1, l2))
 
-
         res = []
-        # params = {}
-        delta = 0
-        while not reached_end and climb_count < 200:
-            # params['id'] = request_id
-            sx = time.time()
+        climb_deltas = []
+        climb_failures = 0
+        climb_start = None
+        climb_timeout = 200
+        b_parser_wait = False
+        init_climb = True
 
-            try:
-                with closing(requests.get(self.poe_api_url.format(request_id), stream=True, timeout=3)) as r:
-                    # r.raw.decode_content = True
+        with requests.Session() as s:
+            s.headers.update({'Accept-Encoding': 'gzip, deflate'})
 
-                    for chunk in r.iter_content(chunk_size=1024):
-                        if chunk:  # filter out keep-alive new chunks
-                            next_id = peek_id(chunk)
-                            if next_id is None:
-                                print(chunk)
-                            elif next_id != request_id:
-                                delta = get_delta(request_id, next_id)
-                                request_id = next_id
-                                climb_count += 1
-                            else:
-                                reached_end = True
-                            break
-            except requests.exceptions.Timeout as e:
-                print('Timeout: {}'.format(e))
-            except requests.RequestException as e:
-                print(e)
-            else:
-                sy = time.time()
-                res.append(sy-sx)
-                print('ID: {}, time: {}s, delta: {}'.format(request_id, sy-sx, delta))
+            while not self._stop.wait(get_sleep_time()):
+                try:
+                    msgr.send_update_id(request_id)
+                    stashUrl = self.poe_api_url.format(request_id)
 
-        if res:
-            print('Average DL: {}s'.format(sum(res) / len(res)))
+                    if climb:
+                        if init_climb:
+                            msgr.send_msg("Skipping ahead.. please wait..")
+                            climb_failures = 0
+                            climb_start = time.time()
+                            init_climb = False
 
-        while not self._stop.wait(get_sleep_time()):
-            try:
-                msgr.send_update_id(request_id)
-                stashUrl = self.poe_api_url.format(request_id)
-
-                # if climb:
-
-
-                if self.parser.queue.qsize() > 5:
-                    if not self.parser.is_alive():
-                        msgr.send_msg("Parser thread ended abruptly. Restarting it..", logging.WARN)
-                        self.parser = ParserThread(self._stop, num_cores, self.league, self.stateMgr, self.handleResult)
-                        self.parser.start()
-                    if not b_parser_wait:
-                        msgr.send_msg("Parser is not keeping up with the request rate. "
-                                      "This can put you behind on the data. Waiting for parser..", logging.WARN)
-                        b_parser_wait = True
-                else:
-                    b_parser_wait = False
-
-
-                    last_req = time.time()
-                    data = getBytesFromURL(stashUrl, handle=c, max_attempts=1)
-                    dl_time = time.time() - last_req
-
-                    if data is None:
-                        msgr.send_tmsg("Invalid response while retrieving stash data.", logging.ERROR)
-                        failed_attempts += 1
-                        continue
-
-                    next_id = peek_id(data.getbuffer()[:512])
-                    if not next_id:
-                        msgr.send_tmsg("Full peek", logging.DEBUG)
-                        next_id = peek_id(data.getvalue())
-
-                    if not next_id:
-                        data = json.loads(data.getvalue().decode())
-                        if "error" in data:
-                            msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
+                        sx = time.time()
+                        next_id = self._get_next_id(request_id)
+                        get_time = time.time() - sx
+                        if next_id is None:
+                            climb_failures += 1
                         else:
-                            msgr.send_tmsg("ID peek failed and no error response was received.\n{}".format(data.getvalue().decode()), logging.WARN)
-                        c.close()
-                        c = pycurl.Curl()
-                        failed_attempts += 1
+                            climb_failures = 0
+                            id_delta = get_delta(request_id, next_id)
+
+                            res.append(get_time)
+                            climb_deltas.append(id_delta)
+
+                            if next_id == request_id:
+                                reached_end = True
+                                last_reached_end = time.time()
+                            else:
+                                request_id = next_id
+
+                        measure_len = 10
+                        avg_delta = None
+                        climb_time = time.time() - climb_start
+
+                        if len(climb_deltas) >= measure_len:
+                            avg_delta = sum(climb_deltas) / measure_len
+
+                        if avg_delta and avg_delta < 70:
+                            climb = False
+                            msgr.send_msg('Climb finished after: {:.3f}s'.format(climb_time))
+                        elif climb_time > climb_timeout:
+                            climb = False
+                            msgr.send_msg('Climb timed out after: {:.3f}s'.format(climb_time), logging.WARN)
+                        elif reached_end:
+                            climb = False
+                            msgr.send_msg('Climb reached end after: {:.3f}s'.format(climb_time))
+                        elif climb_failures > 5:
+                            climb = False
+                            msgr.send_msg('Climb aborted due to failed attempts', logging.WARN)
+
+                        if not climb:
+                            msgr.send_msg('Average climb DL: {:.3f}s, Average delta: {}, Reached delta: {}'
+                                          .format(sum(res) / len(res), round(sum(climb_deltas) / len(climb_deltas)), round(avg_delta) or 'N/A'), logging.INFO)
+                            res = []
+                            climb_deltas = []
+                            msgr.send_msg("Scanning started")
+
                         continue
 
-                    self.parser.put(request_id, data)
+                    if self.parser.queue.qsize() > 5:
+                        if not self.parser.is_alive():
+                            msgr.send_msg("Parser thread ended abruptly. Restarting it..", logging.WARN)
+                            self.parser = ParserThread(self._stop, num_cores, self.league, self.stateMgr, self.handleResult)
+                            self.parser.start()
+                        if not b_parser_wait:
+                            msgr.send_msg("Parser is not keeping up with the request rate. "
+                                          "This can put you behind on the data. Waiting for parser..", logging.WARN)
+                            b_parser_wait = True
+                    else:
+                        b_parser_wait = False
+                        last_req = time.time()
+                        data = getBytesFromURL(stashUrl, handle=c, max_attempts=1)
+                        # r = requests.get(stashUrl, timeout=5)
+                        # r = s.get(stashUrl, timeout=5)
+                        dl_time = time.time() - last_req
+                        # data = r.content
 
-                    if request_id == next_id:
-                        if not reached_end:
-                            msgr.send_msg("Reached the end of the river..", logging.INFO)
-                            reached_end = True
-                        last_reached_end = datetime.now()
+                        if data is None:
+                            msgr.send_tmsg("Invalid response while retrieving stash data.", logging.ERROR)
+                            failed_attempts += 1
+                            continue
 
-                    request_id = next_id
+                        next_id = self._peek_id(data.getbuffer()[:512])
+                        # next_id = peek_id(data[:512])
+                        if not next_id:
+                            msgr.send_tmsg("Full peek", logging.DEBUG)
+                            next_id = self._peek_id(data.getvalue())
+                            # next_id = peek_id(data)
 
-                    delta = time.time() - last_req
-                    delay_time = max(float(config.request_delay) - delta, 0)
-                    failed_attempts = 0
+                        if not next_id:
+                            data = json.loads(data.getvalue().decode())
+                            if "error" in data:
+                                msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
+                            else:
+                                msgr.send_tmsg("ID peek failed and no error response was received.\n{}".format(data.getvalue().decode()), logging.WARN)
+                            c.close()
+                            c = pycurl.Curl()
+                            failed_attempts += 1
+                            continue
 
-                    msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Sleeping: {:.3f}s"
-                                  .format(delta, dl_time, delay_time), logging.DEBUG)
+                        self.parser.put(request_id, data)
 
-            except pycurl.error as e:
-                errno, msg = e.args
-                msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
-                c.close()
-                c = pycurl.Curl()
-                failed_attempts += 1
-                continue
+                        if request_id == next_id:
+                            if not reached_end:
+                                msgr.send_msg("Reached the end of the river..", logging.INFO)
+                                reached_end = True
+                            last_reached_end = datetime.now()
 
-            except Exception as e:
-                msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
-                logexception()
-                # with open(JSON_ERROR_FNAME, "w") as f:
-                #     json.dump(data, f, indent=4, separators=(',', ': '))
-                c.close()
-                c = pycurl.Curl()
-                failed_attempts += 1
+                        request_id = next_id
 
-        # msgr.send_msg("Scanning started")
-        # with Pool(processes=num_cores) as pool:
-        #     while not self._stop.wait(get_sleep_time()):
-        #         try:
-        #             msgr.send_update_id(self.stateMgr.getChangeId())
-        #             # data_count = (0, 0, 0)
-        #
-        #             last_req = time.time()
-        #             data = getJsonFromURL(stashUrl, handle=c, max_attempts=1)
-        #             dl_time = time.time() - last_req
-        #
-        #             if data is None:
-        #                 msgr.send_tmsg("Invalid response while retrieving stash data.", logging.ERROR)
-        #                 # sleep_time = 2
-        #                 failed_attempts += 1
-        #                 continue
-        #
-        #             if "error" in data:
-        #                 msgr.send_tmsg("Server error response: {}".format(data["error"]), logging.WARN)
-        #                 # c.close()
-        #                 c = pycurl.Curl()
-        #                 # sleep_time = 10
-        #                 failed_attempts += 1
-        #                 continue
-        #
-        #             # Process if its the first time we're in this id
-        #             curId = self.stateMgr.getChangeId()
-        #
-        #             last_parse = time.time()
-        #
-        #             if lastId != curId:
-        #                 # snapshot filters and currency information
-        #                 with cm.compile_lock:
-        #                     filters = fm.getActiveFilters()
-        #                     c_budget = cm.compilePrice(fm.budget) if fm.budget else None
-        #                     ccm = cm.toCCM()
-        #
-        #                 if not len(filters):
-        #                     msgr.send_msg("No filters are active. Stopping..")
-        #                     # self._stop.set()
-        #                     # continue
-        #                     break
-        #
-        #                 # pr.enable()
-        #                 data_count = parse_stashes_parallel(data, filters, ccm, self.league, c_budget, self.stateMgr,
-        #                                                     self.handleResult, num_cores, pool)
-        #                 # pr.disable()
-        #             else:
-        #                 parse_next_id(data, self.stateMgr)
-        #
-        #                 if not reached_end:
-        #                     msgr.send_msg("Reached the end of the river..", logging.INFO)
-        #                     reached_end = True
-        #
-        #             lastId = curId
-        #             stashUrl = self.poe_api_url.format(self.stateMgr.getChangeId())
-        #
-        #             parse_time = time.time() - last_parse
-        #
-        #             delta = time.time() - last_req
-        #             delay_time = max(float(config.request_delay) - delta, 0)
-        #             msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Parse: {:.3f}s, Sleeping: {:.3f}s, "
-        #                           "Tabs: {}, League tabs: {}, Items: {}"
-        #                           .format(delta, dl_time, parse_time, delay_time, *data_count), logging.DEBUG)
-        #
-        #             failed_attempts = 0
-        #
-        #         except pycurl.error as e:
-        #             errno, msg = e.args
-        #             msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
-        #             c.close()
-        #             c = pycurl.Curl()
-        #             # sleep_time = 5
-        #             failed_attempts += 1
-        #             continue
-        #         except Exception as e:
-        #             msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
-        #             logexception()
-        #             with open(JSON_ERROR_FNAME, "w") as f:
-        #                 json.dump(data, f, indent=4, separators=(',', ': '))
-        #
-        #             c.close()
-        #             c = pycurl.Curl()
-        #             failed_attempts += 1
-        #             # sleep_time = 10
+                        delta = time.time() - last_req
+                        delay_time = max(float(config.request_delay) - delta, 0)
+                        failed_attempts = 0
+
+                        msgr.send_msg("Iteration time: {:.4f}s, DL: {:.3f}s, Sleeping: {:.3f}s"
+                                      .format(delta, dl_time, delay_time), logging.DEBUG)
+                except requests.Timeout:
+                    pass
+                except requests.RequestException as e:
+                    print(e)
+                except pycurl.error as e:
+                    errno, msg = e.args
+                    msgr.send_tmsg("Connection error {}: {}".format(errno, msg), logging.WARN)
+                    c.close()
+                    c = pycurl.Curl()
+                    failed_attempts += 1
+                    continue
+
+                except Exception as e:
+                    msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e), logging.ERROR)
+                    logexception()
+                    # with open(JSON_ERROR_FNAME, "w") as f:
+                    #     json.dump(data, f, indent=4, separators=(',', ': '))
+                    c.close()
+                    c = pycurl.Curl()
+                    failed_attempts += 1
 
         # pr.disable()
         # s = StringIO()
@@ -438,6 +373,26 @@ class StashScanner:
                 sleep_time = min(2 ** failed_attempts, 30)
 
         return latest_id
+
+    def _get_next_id(self, request_id, timeout=5):
+        try:
+            with closing(requests.get(self.poe_api_url.format(request_id), stream=True, timeout=timeout)) as r:
+                # r.raw.decode_content = True
+
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:  # filter out keep-alive new chunks
+                        next_id = self._peek_id(chunk)
+                        return next_id
+        except requests.exceptions.Timeout as e:
+            msgr.send_msg('Climb timeout: {}'.format(e), logging.DEBUG)
+        except requests.RequestException as e:
+            msgr.send_msg('Climb request failed. {}'.format(e), logging.DEBUG)
+
+    def _peek_id(self, data):
+        m = re.search(b'"next_change_id":\s*"([0-9\-]+)"', data)
+        if m:
+            return m.group(1).decode()
+        return None
 
     @staticmethod
     def clearLeagueData():

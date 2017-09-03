@@ -40,6 +40,8 @@ class ParserThread(Thread):
         with Pool(processes=self.num_workers) as pool:
 
             data = None
+            request_id = None
+
             msgr.send_msg('Parser started..', logging.INFO)
             while not self.evt_stop.is_set():
                 try:
@@ -52,6 +54,7 @@ class ParserThread(Thread):
 
                     last_parse = time.time()
                     data = json.loads(b.getvalue().decode())
+                    # data = json.loads(b.decode())
 
                     # Process if its the first time we're in this id
                     self.stateMgr.getChangeId()
@@ -83,7 +86,7 @@ class ParserThread(Thread):
                     pass
                 except Exception as e:
                     #TODO: tell scanner thread to go back?
-                    msgr.send_msg("Unexpected error occurred: {}. Error details logged to file.".format(e),
+                    msgr.send_msg("Unexpected error occurred while parsing: {}. Error details logged to file. ID: {}".format(e, request_id),
                                   logging.ERROR)
                     logexception()
                     if data:

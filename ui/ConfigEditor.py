@@ -103,7 +103,7 @@ class SettingsEditor(Frame):
         # self.frm_settings.rowconfigure(2, weight=1)
         # self.frm_settings.columnconfigure(0, weight=1)
 
-        is_valid_req_delay = self.register(functools.partial(_is_number, min=1))
+        is_valid_req_delay = self.register(functools.partial(_is_number, min=0))
         is_valid_duration = self.register(functools.partial(_is_number, min=0, max=20))
 
         self.frm_settings.grid(padx=10, pady=10, sticky='nsew')
@@ -157,7 +157,7 @@ class SettingsEditor(Frame):
         self.cb_notify_play_sound.config(state=state)
 
     def applyChanges(self):
-        cfg = AppConfiguration(load=False)
+        cfg = AppConfiguration()
 
         cfg.league = self.cmb_league.get() or leagueOptions[0]
         cfg.notify = self.var_notify.get()
