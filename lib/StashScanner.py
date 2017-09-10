@@ -150,7 +150,7 @@ class StashScanner:
         self.stateMgr.loadState()
         if self.stateMgr.getChangeId() == "" or str(config.scan_mode).lower() == "latest":
             msgr.send_msg("Fetching latest id from API..")
-            climb = True # use config val
+            climb = True  # use config val
             latest_id = self._get_latest_id(is_beta)
 
             if latest_id:

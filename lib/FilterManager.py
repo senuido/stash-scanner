@@ -782,7 +782,7 @@ def lower_json(x):
 
 class FiltersInfo:
     def __init__(self):
-        self.user_filters = [cf.getDisplayTitle() for cf in fm.getActiveFilters() if cf.fltr in fm.userFilters]
+        self.user_filters = [cf.getDisplayTitle(inc_price=True) for cf in fm.getActiveFilters() if cf.fltr in fm.userFilters]
         self.auto_filters = [cf.getDisplayTitle() for cf in fm.getActiveFilters() if cf.fltr in fm.autoFilters]
         self.n_loaded = len(fm.getFilters())
         self.n_active = len(fm.getActiveFilters())

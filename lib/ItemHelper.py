@@ -611,7 +611,8 @@ class Item:
         price = self.get_item_price_whisper()
         price_str = ' for {} {}'.format(*price) if price is not None else ''
 
-        stack_size_str = '' if self.stacksize == 1 else str(self.stacksize) + ' '
+        stack_size_str = ''
+        # stack_size_str = '' if self.stacksize == 1 else str(self.stacksize) + ' '
 
         return template.format(stash['lastCharacterName'], stack_size_str, self.name,
                                price_str, self.league, stash['stash'],

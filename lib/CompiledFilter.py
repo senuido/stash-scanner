@@ -83,15 +83,17 @@ class CompiledFilter:
 
         return cm.toDisplayPrice(self.comp['price_max'])
 
-    def getDisplayTitle(self):
+    def getDisplayTitle(self, inc_price=False):
         title = self.fltr.title
 
-        # price = self.getDisplayPrice()
-        #
-        # if price:
-        #     title = "{} ({})".format(self.fltr.title, price)
+        if inc_price:
+            price = self.getDisplayPrice()
+
+            if price:
+                title = "{} ({})".format(self.fltr.title, price)
 
         return title
+
 
     def _checkNames(self, c_name, names):
         for name in names:

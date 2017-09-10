@@ -961,7 +961,7 @@ class AppGUI(Tk):
             tag = 'requirement-warning' if item.max_sockets < item.type_max_sockets else 'requirement'
             if reqs:
                 details.insert(END, ' - ', 'requirement')
-            details.insert(END, 'Max sockets: {} ({})\n'.format(item.max_sockets, item.type_max_sockets), tag)
+            details.insert(END, 'Max sockets: {} ({})\n'.format(min(item.max_sockets, item.type_max_sockets), item.type_max_sockets), tag)
         else:
             details.insert(END, '\n', 'requirement')
 

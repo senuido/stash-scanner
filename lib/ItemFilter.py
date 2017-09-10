@@ -39,7 +39,7 @@ class FilterPriority(IntEnum):
 class Filter:
     FILTER_SCHEMA_FNAME = "res\\filter.schema.json"
     FILTER_INVALID_PRICE = "Invalid price '{}' in filter {}"
-    FILTER_INVALID_PRICE_BASE = "Invalid price in filter: {}. Expected filter ot have a base"
+    FILTER_INVALID_PRICE_BASE = "Invalid price in filter: {}. Expected filter to have a base"
     FILTER_INVALID_REGEX = "Invalid regex: '{}' in filter {}. Error while compiling: {}"
 
     _FILTER_PRICE_REGEX = re.compile('\s*([+\-*/]?)\s*(.+)')
