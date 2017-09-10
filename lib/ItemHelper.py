@@ -611,10 +611,14 @@ class Item:
         price = self.get_item_price_whisper()
         price_str = ' for {} {}'.format(*price) if price is not None else ''
 
-        stack_size_str = ''
+        # stack_size_str = ''
         # stack_size_str = '' if self.stacksize == 1 else str(self.stacksize) + ' '
+        if self.iclass and ItemClass.Gem & self.iclass == self.iclass:
+            gem_text = 'level {} {}% '.format(int(self.level), self.quality)
+        else:
+            gem_text = ''
 
-        return template.format(stash['lastCharacterName'], stack_size_str, self.name,
+        return template.format(stash['lastCharacterName'], gem_text, self.name,
                                price_str, self.league, stash['stash'],
                                self.x + 1, self.y + 1)
 
