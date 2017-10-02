@@ -1,12 +1,13 @@
 import copy
 import functools
+import os
 import pprint
 import threading
 from enum import Enum
 from tkinter import Toplevel, StringVar, BooleanVar, messagebox, IntVar
 from tkinter.constants import *
 import tkinter.font as tkfont
-from tkinter.ttk import Notebook, Frame, Label, Button, Style, Combobox, Entry, Checkbutton, Scale
+from tkinter.ttk import Notebook, Frame, Label, Button, Style, Combobox, Entry, Checkbutton, Scale, LabelFrame
 
 from lib.CurrencyManager import cm
 from lib.FilterManager import fm
@@ -105,46 +106,86 @@ class SettingsEditor(Frame):
 
         is_valid_req_delay = self.register(functools.partial(_is_number, min=0))
         is_valid_duration = self.register(functools.partial(_is_number, min=0, max=20))
+        is_valid_history_retention = self.register(functools.partial(_is_number, min=0, max=100))
+        is_valid_max_conns = self.register(functools.partial(_is_number, min=1, max=20, integer=True))
+        is_valid_num_workers = self.register(functools.partial(_is_number, min=0, max=os.cpu_count() or 8, integer=True))
 
         self.frm_settings.grid(padx=10, pady=10, sticky='nsew')
 
-        lbl = Label(self.frm_settings, text='League:')
+        frm_basic = LabelFrame(self.frm_settings, text='Basic')
+        frm_basic.grid(padx=5, pady=5, sticky='nsew', row=0, column=0, ipadx=5)
+
+        lbl = Label(frm_basic, text='League:')
         lbl.grid(row=0, column=0, padx=5, pady=3, sticky='w')
-        self.cmb_league = Combobox(self.frm_settings, state=READONLY, values=leagueOptions)
+        self.cmb_league = Combobox(frm_basic, state=READONLY, values=leagueOptions)
         self.cmb_league.grid(row=0, column=1, pady=3, sticky='nsew')
-        lbl = Label(self.frm_settings, text='Minimum request delay(s):')
-        lbl.grid(row=1, column=0, padx=5, pady=3, sticky='w')
-        self.entry_req_delay = Entry(self.frm_settings, validate='all', validatecommand=(is_valid_req_delay, '%P'))
-        self.entry_req_delay.grid(row=1, column=1, pady=3, sticky='nsew')
-        lbl = Label(self.frm_settings, text='Scan mode:')
-        lbl.grid(row=2, column=0, padx=5, pady=3, sticky='w')
-        self.cmb_scan_mode = Combobox(self.frm_settings, state=READONLY, values=scanModeOptions)
-        self.cmb_scan_mode.grid(row=2, column=1, pady=3, sticky='nsew')
-        lbl = Label(self.frm_settings, text='Notification duration(s):')
+        # lbl = Label(frm_basic, text='Minimum request delay(s):')
+        # lbl.grid(row=1, column=0, padx=5, pady=3, sticky='w')
+        # self.entry_req_delay = Entry(frm_basic, validate='all', validatecommand=(is_valid_req_delay, '%P'))
+        # self.entry_req_delay.grid(row=1, column=1, pady=3, sticky='nsew')
+        # lbl = Label(frm_basic, text='Scan mode:')
+        # lbl.grid(row=2, column=0, padx=5, pady=3, sticky='w')
+        # self.cmb_scan_mode = Combobox(frm_basic, state=READONLY, values=scanModeOptions)
+        # self.cmb_scan_mode.grid(row=2, column=1, pady=3, sticky='nsew')
+        lbl = Label(frm_basic, text='Notification duration(s):')
         lbl.grid(row=3, column=0, padx=5, pady=3, sticky='w')
 
-        self.entry_notification_duration = Entry(self.frm_settings, validate='all',
+        self.entry_notification_duration = Entry(frm_basic, validate='all',
                                                  validatecommand=(is_valid_duration, '%P'))
         self.entry_notification_duration.grid(row=3, column=1, pady=3, sticky='nsew')
 
-        frm = Frame(self.frm_settings)
-        frm.grid(row=4, columnspan=3)
+        frm = LabelFrame(self.frm_settings, text='Advanced')
+        frm.grid(pady=5, sticky='nsew', row=0, column=1, ipadx=5)
+
+        lbl = Label(frm, text='Scan mode:')
+        lbl.grid(row=0, column=0, padx=5, pady=3, sticky='w')
+        self.cmb_scan_mode = Combobox(frm, state=READONLY, values=scanModeOptions)
+        self.cmb_scan_mode.grid(row=0, column=1, pady=3, sticky='nsew')
+
+        lbl = Label(frm, text='Min. request delay:')
+        lbl.grid(row=1, column=0, padx=5, pady=3, sticky='w')
+        self.entry_req_delay = Entry(frm, validate='all', validatecommand=(is_valid_req_delay, '%P'))
+        self.entry_req_delay.grid(row=1, column=1, pady=3, sticky='nsew')
+        lbl = Label(frm, text='(seconds)')
+        lbl.grid(row=1, column=2, padx=(5, 0), pady=3, sticky='w')
+
+        lbl = Label(frm, text='Max connections:')
+        lbl.grid(row=2, column=0, padx=5, pady=3, sticky='w')
+        self.entry_max_conns = Entry(frm, validate='all', validatecommand=(is_valid_max_conns, '%P'))
+        self.entry_max_conns.grid(row=2, column=1, pady=3, sticky='nsew')
+
+        lbl = Label(frm, text='Parsers #:')
+        lbl.grid(row=3, column=0, padx=5, pady=3, sticky='w')
+        self.entry_num_workers = Entry(frm, validate='all', validatecommand=(is_valid_num_workers, '%P'))
+        self.entry_num_workers.grid(row=3, column=1, pady=3, sticky='nsew')
+        lbl = Label(frm, text='(0 = Auto)')
+        lbl.grid(row=3, column=2, padx=(5, 0), pady=3, sticky='w')
+
+        lbl = Label(frm, text='History retention:')
+        lbl.grid(row=4, column=0, padx=5, pady=3, sticky='w')
+        self.entry_history_retention = Entry(frm, validate='all', validatecommand=(is_valid_history_retention, '%P'))
+        self.entry_history_retention.grid(row=4, column=1, pady=3, sticky='nsew')
+        lbl = Label(frm, text='(days)')
+        lbl.grid(row=4, column=2, padx=(5, 0), pady=3, sticky='w')
+
+        frm = Frame(frm_basic)
+        frm.grid(row=4, column=0)
 
         self.var_notify = BooleanVar()
         self.var_notify.trace_variable('w', lambda a, b, c: self._on_notify_option_change())
         self.cb_notifications = Checkbutton(frm, text='Growl notifications', variable=self.var_notify)
-        self.cb_notifications.grid(row=0, column=0)
+        self.cb_notifications.grid(row=0, column=0, padx=5, pady=3, sticky='w')
 
         self.var_notify_copy = BooleanVar()
-        self.cb_notify_copy = Checkbutton(frm, text='Copy message to clipboard', variable=self.var_notify_copy)
-        self.cb_notify_copy.grid(row=0, column=1, padx=5)
+        self.cb_notify_copy = Checkbutton(frm, text='Copy message', variable=self.var_notify_copy)
+        self.cb_notify_copy.grid(row=1, column=0, padx=5, pady=3, sticky='w')
 
         self.var_notify_play_sound = BooleanVar()
         self.cb_notify_play_sound = Checkbutton(frm, text='Play sound', variable=self.var_notify_play_sound)
-        self.cb_notify_play_sound.grid(row=0, column=2)
+        self.cb_notify_play_sound.grid(row=2, column=0, padx=5, pady=3, sticky='w')
 
         frm_btns = Frame(self.frm_settings)
-        frm_btns.grid(row=5, columnspan=3, pady=(20, 5), sticky='w')
+        frm_btns.grid(row=2, columnspan=3, pady=(20, 5), sticky='w')
 
         self.btn_apply = Button(frm_btns, text='Apply', command=self.applyChanges)
         self.btn_apply.grid(row=0, column=0, padx=5)
@@ -167,6 +208,11 @@ class SettingsEditor(Frame):
         cfg.request_delay = float(self.entry_req_delay.get() or 1)
         cfg.scan_mode = self.cmb_scan_mode.get() or scanModeOptions[0]
 
+        cfg.history_retention = int(self.entry_history_retention.get() or 1)
+        cfg.max_conns = int(self.entry_max_conns.get() or 8)
+        cfg.num_workers = int(self.entry_num_workers.get() or 0)
+        cfg.smooth_delay = config.smooth_delay
+
         self.app.update_configuration(cfg)
 
     def loadSettings(self):
@@ -179,6 +225,14 @@ class SettingsEditor(Frame):
         self.var_notify_play_sound.set(config.notify_play_sound)
         self.entry_req_delay.delete(0, END)
         self.entry_req_delay.insert(0, config.request_delay)
+
+        self.entry_history_retention.delete(0, END)
+        self.entry_history_retention.insert(0, config.history_retention)
+        self.entry_max_conns.delete(0, END)
+        self.entry_max_conns.insert(0, config.max_conns)
+        self.entry_num_workers.delete(0, END)
+        self.entry_num_workers.insert(0, config.num_workers)
+
 
 class CurrencyColumn(Enum):
     Currency = 'Currency'
@@ -865,7 +919,7 @@ def _to_display_rate(val):
         return int(val)
     return round(val, 2)
 
-def _is_number(text, min=None, max=None, accept_empty=True):
+def _is_number(text, min=None, max=None, accept_empty=True, integer=False):
     try:
         # text = text.strip()
         if text == '':
@@ -874,7 +928,11 @@ def _is_number(text, min=None, max=None, accept_empty=True):
         if text.find(' ') != -1:
             return False
 
-        num = float(text)
+        if integer:
+            num = int(text)
+        else:
+            num = float(text)
+
         if min is not None and num < min:
             return False
         if max is not None and num > max:

@@ -1,3 +1,5 @@
+import time
+
 try:
     import functools
     import logging
@@ -148,7 +150,9 @@ class AppGUI(Tk):
         self.currency_info = CurrencyInfo()
         self.filters_info = FiltersInfo()
         self.wnd_editor = None
+
         self.init_error = None
+        self.stop_error = None
 
         self.t_version_check = None
 
@@ -171,6 +175,7 @@ class AppGUI(Tk):
         try:
             self.iconbitmap(default='res\\app.ico')
             ItemDisplay.init()
+            StatusBar.init()
             Filter.init()
             ItemCollection.init()
             mod_helper.init()
@@ -184,6 +189,7 @@ class AppGUI(Tk):
             self.protocol("WM_DELETE_WINDOW", self.on_close)
             self.scanner = None
             self.scan_thread = None
+            self.after(1000, self.update_statistics)
             # self.details_img_lock = Lock()
             self.details_lock = Lock()
 
@@ -235,6 +241,7 @@ class AppGUI(Tk):
             if config.league == cfg.league:
                 config.update(cfg)
                 config.save()
+                self.nb_cfg.onTabChange()
                 return
 
             answer = messagebox.askquestion('Settings',
@@ -244,12 +251,12 @@ class AppGUI(Tk):
                 return
 
             self.close_editor_window()
-
-            if self.is_scan_active:
-                self.stop_scan()
-                ls = LoadingScreen(self)
-                threading.Thread(target=self._stop_scan, args=(ls,)).start()
-                self.wait_window(ls)
+            self.stop_scan()
+            # if self.is_scan_active:
+            #     self.stop_scan()
+            #     ls = LoadingScreen(self)
+            #     threading.Thread(target=self._stop_scan, args=(ls,)).start()
+            #     self.wait_window(ls)
 
             try:
                 StashScanner.clearLeagueData()
@@ -299,15 +306,6 @@ class AppGUI(Tk):
         if warnings:
             warnings += '\nYou can either continue in this mode or restart the application if you wish to try again.'
             messagebox.showwarning('Warning', warnings, parent=self)
-
-    def _stop_scan(self, ls):
-        ls.updateStatus('Stopping scan..', 10)
-        try:
-            self.scan_thread.join()
-        except RuntimeError as e:
-            logger.error('Error joining to scan thread, {}'.format(e))
-
-        ls.close()
 
     def load(self):
         ls = LoadingScreen(self)
@@ -419,7 +417,7 @@ class AppGUI(Tk):
 
         self.upper_frame = Frame(self, relief=GROOVE)
         self.upper_frame.grid(row=0, sticky='nsew', ipadx=5)
-        self.upper_frame.columnconfigure(8, weight=1)
+        # self.upper_frame.columnconfigure(8, weight=1)
 
         self.lbl_msglevel = Label(self.upper_frame, text="Message Level:")
         self.lbl_msglevel.grid(row=0, column=0, padx=(5, 0), pady=5, sticky='ns')
@@ -434,27 +432,33 @@ class AppGUI(Tk):
         self.btn_clear.grid(row=0, column=2, pady=5, padx=(5, 0), sticky='ns')
 
         self.btn_toggle = Button(self.upper_frame, text="Start", command=self.toggle_scan)
-        self.btn_toggle.grid(row=0, column=3, pady=5, padx=(5, 0), sticky='ns')
+        self.btn_toggle.grid(row=0, column=3, pady=5, padx=(5, 5), sticky='ns')
+
+        sep = Separator(self.upper_frame, orient=VERTICAL)
+        sep.grid(row=0, column=9, sticky='ns', pady=2)
 
         self.btn_currency = Button(self.upper_frame, text="Currency Info",
                                    command=lambda: self.update_details_lock(self.currency_info))
-        self.btn_currency.grid(row=0, column=4, pady=5, padx=(5, 0), sticky='ns')
+        self.btn_currency.grid(row=0, column=12, pady=5, padx=(5, 0), sticky='ns')
 
         self.btn_filters = Button(self.upper_frame, text="Filters Info",
                                   command=lambda: self.update_details_lock(self.filters_info))
-        self.btn_filters.grid(row=0, column=5, pady=5, padx=(5, 0), sticky='ns')
+        self.btn_filters.grid(row=0, column=11, pady=5, padx=(5, 0), sticky='ns')
 
         self.btn_editor = Button(self.upper_frame, text='Filter Editor', command=self.show_editor_window)
-        self.btn_editor.grid(row=0, column=6, pady=5, padx=(5, 0), sticky='ns')
+        self.btn_editor.grid(row=0, column=10, pady=5, padx=(5, 0), sticky='ns')
 
-        self.lbl_spacer = Label(self.upper_frame)
-        self.lbl_spacer.grid(row=0, column=8)
+        # self.lbl_spacer = Label(self.upper_frame)
+        # self.lbl_spacer.grid(row=0, column=8)
 
-        self.lbl_id_value = Label(self.upper_frame, text="", foreground="blue")
-        self.lbl_id_value.grid(row=0, column=12, padx=(0, 10), sticky='e')
+        # self.lbl_id_value = Label(self.upper_frame, text="", foreground="blue")
+        # self.lbl_id_value.grid(row=0, column=12, padx=(0, 10), sticky='e')
 
         self.main_pane_wnd = PanedWindow(self, orient=VERTICAL)
         self.main_pane_wnd.grid(row=1, column=0, sticky='nsew')
+
+        self.status_bar = StatusBar(self)
+        self.status_bar.grid(row=2, column=0, sticky='nsew')
 
         self.pane_wnd = PanedWindow(self.main_pane_wnd, orient=HORIZONTAL)
         self.nb_cfg = ConfigEditor(self.main_pane_wnd, self)
@@ -744,23 +748,93 @@ class AppGUI(Tk):
 
     def toggle_scan(self):
         if self.btn_toggle.cget("text") == "Stop":
-            self.btn_toggle.config(text="Stopping..", state=DISABLED)
             self.stop_scan()
         else:
             self.start_scan()
-            self.btn_toggle.config(text="Stop")
+
+    def _get_stat(self, stat, suffix='', default='N/A'):
+        if stat is None:
+            return default
+        return '{:.2f}{}'.format(stat, suffix)
+
+    def update_statistics(self):
+        scanner = self.scanner
+        if scanner:
+            stats = scanner.getStatistics()
+        else:
+            stats = {}
+
+        delta = stats.get('id-delta')
+        last_req = stats.get('last-req')
+        if delta is None or not last_req or time.time() - last_req > 20:
+            self.status_bar.lbl_id_delta.config(image=self.status_bar.grey)
+        # elif delta < 30:
+        #     self.status_bar.lbl_id_delta.config(image=self.status_bar.dark_green)
+        elif delta < 50:
+            self.status_bar.lbl_id_delta.config(image=self.status_bar.green)
+        elif delta < 150:
+            self.status_bar.lbl_id_delta.config(image=self.status_bar.yellow)
+        else:
+            self.status_bar.lbl_id_delta.config(image=self.status_bar.red)
+
+        self.status_bar.var_id_delta.set(self._get_stat(delta))
+        self.status_bar.var_delta_rate.set(self._get_stat(stats.get('delta-rate'), suffix=' d/s'))
+        self.status_bar.var_peek_time.set(self._get_stat(stats.get('peek-time'), suffix='s'))
+        self.status_bar.var_req_time.set(self._get_stat(stats.get('req-time'), suffix='s'))
+
+        self.status_bar.var_queue_time.set(self._get_stat(stats.get('queue-time'), suffix='s'))
+        self.status_bar.var_req_delay_time.set(self._get_stat(stats.get('req-delay-time'), suffix='s'))
+
+        self.status_bar.var_parse_speed.set(self._get_stat(stats.get('parse-speed'), suffix=' item/s'))
+        self.status_bar.var_parse_time.set(self._get_stat(stats.get('parse-time'), suffix='s'))
+
+        self.after(1000, self.update_statistics)
 
     def start_scan(self):
         self.scanner = StashScanner()
         self.scan_thread = Thread(target=self.scanner.start)
         self.scan_thread.start()
 
+        self.update_started()
+
     def stop_scan(self):
+        self.btn_toggle.config(text="Stopping..", state=DISABLED)
+
+        ls = LoadingScreen(self, determinate=False)
+        threading.Thread(target=self._stop_scan, args=(ls,)).start()
+        self.wait_window(ls)
+
+        if self.stop_error:
+            self.update_started()
+            messagebox.showwarning('Operation timed out',
+                                   "Stop request timed out. If the issue persists, restart the application.",
+                                   parent=self)
+        else:
+            self.update_stopped()
+
+    def update_started(self):
+        self.btn_toggle.config(text="Stop", state=NORMAL)
+
+    def update_stopped(self):
+        self.btn_toggle.config(text="Start", state=NORMAL)
+        self.btn_toggle.update_idletasks()
+
+    def _stop_scan(self, ls):
+        ls.updateStatus('Stopping scan..')
+
+        self.stop_error = None
         if self.is_scan_active:
             self.scanner.stop()
-        else:
-            self.btn_toggle.config(text="Start", state=NORMAL)
-            self.btn_toggle.update_idletasks()
+            self.scan_thread.join(timeout=60)
+
+            if self.scan_thread.is_alive():
+                self.stop_error = TimeoutError()
+
+        if not self.stop_error:
+            self.scanner = None
+            self.scan_thread = None
+
+        ls.close()
 
     @property
     def is_scan_active(self):
@@ -1059,6 +1133,10 @@ class AppGUI(Tk):
                     details.insert(END, '+{}'.format(quality_max - item.quality), value_tag)
                 details.insert(END, sep)
 
+            # if item.tier:
+            #     details.insert(END, 'Tier: ', lbl_tag)
+            #     details.insert(END, '{}{}'.format(item.tier, sep))
+
             if item.level:
                 details.insert(END, 'Level: ', lbl_tag)
                 details.insert(END, '{}{}'.format(dround(item.level), sep))
@@ -1122,7 +1200,7 @@ class AppGUI(Tk):
             details.insert(END, '\n' * 3, 'tiny')
             details.insert(END, 'Price:\t', 'bold')
             if not item.item_value:
-                details.insert(END, '{} x'.format(amount))
+                details.insert(END, '{} x '.format(amount))
             else:
                 details.insert(END, '{}{} x \t'.format(ppad, amount))
             if currency in ItemDisplay.currency_images:
@@ -1214,12 +1292,11 @@ class AppGUI(Tk):
                 msg = msgr.msg_queue.get_nowait()
 
                 if msg[0] == MsgType.ScanStopped:
-                    self.btn_toggle.config(text="Start", state=NORMAL)
-                    self.btn_toggle.update_idletasks()
+                    self.stop_scan()
                 elif msg[0] == MsgType.UpdateID:
                     id = msg[1]
-                    self.lbl_id_value.config(text=id)
-                    self.lbl_id_value.update_idletasks()
+
+                    self.status_bar.var_req_id.set(id)
                 elif msg[0] == MsgType.Text:
                     msg_level, text, tag = msg[1:]
 
@@ -1638,6 +1715,68 @@ class ItemDisplay:
         </body>
         </html>
         """.format(params_str)
+
+class StatusBar(Frame):
+
+    @classmethod
+    def init(cls):
+        def load_img(fpath):
+            img = PIL.Image.open(fpath).resize((20, 20), PIL.Image.ANTIALIAS)
+            return PIL.ImageTk.PhotoImage(img)
+        try:
+            cls.red = load_img('res\\status-red.ico')
+            cls.yellow = load_img('res\\status-yellow.ico')
+            cls.green = load_img('res\\status-green.ico')
+            cls.dark_green = load_img('res\\status-dark-green.ico')
+            cls.grey = load_img('res\\status-grey.ico')
+        except IOError as e:
+            raise AppException('Failed to load image resources.\n{}\n'
+                               'Make sure the files are valid and in place.'.format(e))
+        except Exception as e:
+            raise AppException('Failed to load image resources.\nUnexpected Error: {}'.format(e))
+
+    def __init__(self, master):
+        Frame.__init__(self, master, relief=SUNKEN, borderwidth=2)
+
+        # frm = Frame(self)
+        # self.lbl = Label(frm, text='wTF')
+        # self.lbl.grid(row=0, column=0, sticky='w')
+        # frm.grid(row=0, column=0, sticky='w')
+
+        lbl, self.lbl_id_val, self.var_req_id = self.add('Req ID:', value='N/A')
+        # self.lbl_id_val.config(foreground='blue')
+        self.lbl_id_delta, val, self.var_id_delta = self.add('Delta avg:', value='N/A')
+        self.lbl_id_delta.config(compound=LEFT, image=self.grey)
+        lbl, val, self.var_delta_rate = self.add('Delta rate:', value='N/A')
+        lbl, val, self.var_req_time = self.add('DL time:', value='N/A')
+        lbl, val, self.var_peek_time = self.add('Peek time:', value='N/A')
+        lbl, val, self.var_req_delay_time = self.add('Delay time:', value='N/A')
+        lbl, val, self.var_queue_time = self.add('Queue time:', value='N/A')
+
+        lbl, val, self.var_parse_time = self.add('Parse time:', value='N/A')
+        lbl, val, self.var_parse_speed = self.add('Parse speed:', value='N/A')
+
+        self.rowconfigure(0, pad=5)
+        self.columnconfigure(0, weight=1)
+
+    def add(self, label, value=''):
+        cols, rows = self.grid_size()
+        frm = Frame(self)
+        frm.grid(row=0, column=cols, sticky='ew')
+        # frm.columnconfigure(2, weight=1)
+
+        lbl = Label(frm, text=label)
+        var = StringVar(value=value)
+        lbl_val = Label(frm, textvariable=var)
+
+        lbl.grid(row=0, column=1, sticky='w')
+        lbl_val.grid(row=0, column=2, padx=5, sticky='w')
+
+        if cols > 0:
+            sep = Separator(frm, orient=VERTICAL)
+            sep.grid(row=0, column=0, sticky='nsw', padx=5)
+
+        return lbl, lbl_val, var
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

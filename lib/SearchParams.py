@@ -162,6 +162,9 @@ class SearchParams:
                     sp.q_min = item.quality
                 else:
                     sp.q_min = max(item.quality - 3, 0)
+            elif ItemClass.Map & item.iclass == item.iclass:
+                sp.level_min = item.tier
+                sp.level_max = item.tier
 
 
 

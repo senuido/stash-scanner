@@ -148,6 +148,7 @@ class CompiledFilter:
             return False
         if self.stacksize_max is not None and self.stacksize_max < item.stacksize:
             return False
+
         if self.modcount_min is not None and self.modcount_min > item.modcount:
             return False
         if self.modcount_max is not None and self.modcount_max < item.modcount:
@@ -156,10 +157,11 @@ class CompiledFilter:
         if self.iclass is not None and self.iclass & item.iclass != item.iclass:
             return False
 
-        if self.level_min is not None and self.level_min > item.level:
+        if self.level_min is not None and self.level_min > max(item.level, item.tier):
             return False
-        if self.level_max is not None and self.level_max < item.level:
+        if self.level_max is not None and self.level_max < max(item.level, item.tier):
             return False
+
         if self.exp is not None and self.exp > item.exp:
             return False
         if self.quality_min is not None and self.quality_min > item.quality:

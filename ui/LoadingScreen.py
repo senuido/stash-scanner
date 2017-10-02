@@ -1,19 +1,19 @@
 import threading
 import queue
-from tkinter import Tk, Toplevel
+from tkinter import Tk, Toplevel, messagebox
 from tkinter.constants import *
 from tkinter.simpledialog import Dialog
 from tkinter.ttk import Progressbar, Label, Frame, Button, Style
 
 import time
 
+
 _MSG_UPDATE = 0
 _MSG_CLOSE = 1
-
-Dialog
+_MSG_NOTIFY = 2
 
 class LoadingScreen(Toplevel):
-    def __init__(self, master, *args, **kwargs):
+    def __init__(self, master, determinate=True, *args, **kwargs):
         self._queue = queue.Queue()
 
         super().__init__(master, *args, **kwargs)
@@ -23,6 +23,7 @@ class LoadingScreen(Toplevel):
         # style = Style()
         # style.configure('LoadingScreen.TFrame', padding=0, bg='black')
 
+        self.determinate = determinate
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -37,7 +38,8 @@ class LoadingScreen(Toplevel):
         self.frm.columnconfigure(0, weight=1, minsize=250)
 
         self.lbl_info.grid(row=0, column=0, sticky='ew')
-        self.pb_progress = Progressbar(self.frm, mode='determinate')
+        pb_mode = 'determinate' if self.determinate else 'indeterminate'
+        self.pb_progress = Progressbar(self.frm, mode=pb_mode)
         self.pb_progress.grid(row=1, column=0, sticky='ew')
 
         self.update_idletasks()
@@ -49,6 +51,10 @@ class LoadingScreen(Toplevel):
         self.wait_visibility()
         self.grab_set()
         self.focus_set()
+
+        if not self.determinate:
+            # self.pb_progress.config(mode='determinate')
+            self.pb_progress.start(10)
 
         self.after(10, self.processMessages)
 
@@ -66,9 +72,13 @@ class LoadingScreen(Toplevel):
                 if type == _MSG_UPDATE:
                     text, progress = args
                     self.lbl_info.config(text=text)
-                    self.pb_progress.config(value=progress)
+                    if self.determinate:
+                        self.pb_progress.config(value=progress)
                 elif type == _MSG_CLOSE:
                     self.destroy()
+                elif type == _MSG_NOTIFY:
+                    title, message = args
+                    messagebox.showwarning(title, message, parent=self)
 
         except queue.Empty:
             pass
@@ -78,8 +88,12 @@ class LoadingScreen(Toplevel):
     def close(self):
         self._queue.put((_MSG_CLOSE, None))
 
-    def updateStatus(self, text, progress):
+    def updateStatus(self, text, progress=0):
         self._queue.put((_MSG_UPDATE, (text, progress)))
+
+    def notifyMessage(self, title, message):
+        self._queue.put((_MSG_NOTIFY, (title, message)))
+
 
 if __name__ == '__main__':
     root = Tk()
@@ -90,8 +104,11 @@ if __name__ == '__main__':
     lbl = Label(frm, text='Main Window')
     lbl.grid()
 
+    pb = Progressbar(frm, mode='indeterminate')
+    pb.grid()
+
     def load_data(event=None):
-        ls = LoadingScreen(root)
+        ls = LoadingScreen(root, determinate=False)
 
         def _load():
             ls.updateStatus('Downloading currency information..', 0)

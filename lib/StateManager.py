@@ -1,5 +1,8 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from lib.Utility import config
+
 
 def itemToString(id, item):
     return "{};{};{};{}".format(id, item[0].isoformat(), "" if item[1] is None else item[1], item[2])
@@ -24,15 +27,19 @@ class StateManager:
         # self.loadState()
 
     def itemExists(self, id):
-        return id in self.items
+        item = self.items.get(id)
+        return item and \
+               ((config.history_retention > 0 and datetime.utcnow() - item[0] <= timedelta(days=config.history_retention))
+                or not config.history_retention)
 
     def addItem(self, id, price, acc):
-        b_update = False
         if id not in self.items:
             b_update = True
         else:
             timestamp, curprice, curacc = self.items[id]
-            b_update = curprice != price or curacc != acc
+
+            b_update = curprice != price or curacc != acc or \
+                       (config.history_retention > 0 and datetime.utcnow() - timestamp > timedelta(days=config.history_retention))
 
         if b_update:
             self.items[id] = (datetime.utcnow(), price, acc)
@@ -55,10 +62,14 @@ class StateManager:
         if self.fState is not None:
             self.fState.close()
 
+        self.clearOldEntries()
+
         self.fState = open(StateManager.STATE_FNAME, mode="w", encoding="utf-8", errors="replace")
 
         for id in self.items:
             self.fState.write(itemToString(id, self.items[id]) + "\n")
+
+        self.fState.flush()
 
     def saveState(self, id):
         if self.fStateId is None or self.fStateId.closed:
@@ -79,9 +90,10 @@ class StateManager:
             while line:
                 fields = line.strip('\n').split(sep=";")
                 try:
-                    self.items[fields[0]] = [getDateTimeFromString(fields[1]),
-                                             None if fields[2] == "" else fields[2],
-                                             fields[3]]
+                    item_id, timestamp, price, acc = \
+                        fields[0], getDateTimeFromString(fields[1]), None if fields[2] == "" else fields[2], fields[3]
+
+                    self.items[item_id] = [timestamp, price, acc]
                 except IndexError:
                     # 'ignoring entry {}'.format(line)
                     pass  # silently ignore invalid entries
@@ -101,18 +113,13 @@ class StateManager:
 
         self.__loadStateItems()
 
-    # if datetime.now() - self.lastClear > timedelta(minutes=60):
-    #     self.clearold()
-
-    # def clearold(self):
-    #     currtime = datetime.now()
-    #     maxtime = timedelta(minutes=60)
-    #
-    #     for item in dict(self.items):
-    #         if currtime - self.items[item][0] > maxtime:
-    #             del self.items[item]
-    #
-    #     self.lastClear = currtime
+    def clearOldEntries(self):
+        if config.history_retention > 0:
+            last_date = datetime.utcnow() - timedelta(days=config.history_retention)
+            for item_id, item in dict(self.items).items():
+                timestamp = item[0]
+                if timestamp < last_date:
+                    self.items.pop(item_id, None)
 
     def getChangeId(self):
         return self.changeid

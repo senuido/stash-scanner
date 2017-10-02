@@ -1,19 +1,19 @@
 import logging
-from threading import Thread
+from threading import Thread, Event
 
 from lib.CurrencyManager import cm
 from lib.Utility import AppException, msgr, logexception
 
 
 class UpdateThread(Thread):
-    def __init__(self, event, fm, interval):
+    def __init__(self, fm, interval):
         Thread.__init__(self)
-        self.stopped = event
+        self.evt_stop = Event()
         self.fm = fm
         self.interval = interval
 
     def run(self):
-        while not self.stopped.wait(self.interval):
+        while not self.evt_stop.wait(self.interval):
             currency_updated = False
             filters_updated = False
 
@@ -45,3 +45,6 @@ class UpdateThread(Thread):
             except Exception as e:
                 msgr.send_msg("Unexpected error while updating: {}".format(e), logging.ERROR)
                 logexception()
+
+    def stop(self):
+        self.evt_stop.set()

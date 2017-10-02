@@ -8,7 +8,8 @@ import re
 import threading
 import time
 from datetime import datetime, timedelta
-from enum import IntEnum
+from enum import IntEnum, Enum
+from urllib.parse import urljoin
 
 import jsonschema
 
@@ -20,7 +21,7 @@ from lib.ItemHelper import ItemRarity, ItemType
 from lib.ModFilter import ModFilter, ModFilterType
 from lib.ModFilterGroup import AllFilterGroup
 from lib.Utility import config, AppException, getJsonFromURL, str2bool, logexception, msgr, get_verror_msg, \
-    utc_to_local, CompileException, ConfidenceLevel
+    utc_to_local, CompileException, ConfidenceLevel, POE_NINJA_API
 
 FILTER_FILE_MISSING = "Missing file: {}"
 FILTER_INVALID_JSON = "Error decoding JSON: {} in file {}"
@@ -34,16 +35,16 @@ FILTERS_CFG_FNAME = "cfg\\filters.config.json"
 FILTERS_FILE_SCHEMA_FNAME = "res\\filters_file.schema.json"
 
 _URLS = [
-    "http://poeninja.azureedge.net/api/Data/GetDivinationCardsOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetEssenceOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetUniqueJewelOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetUniqueMapOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetUniqueFlaskOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetUniqueWeaponOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetUniqueArmourOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetUniqueAccessoryOverview?league={}",
-    "http://poeninja.azureedge.net/api/Data/GetProphecyOverview?league={}",
-    # "http://poeninja.azureedge.net/api/Data/GetMapOverview?league={}"
+    urljoin(POE_NINJA_API, "GetDivinationCardsOverview?league={}"),
+    urljoin(POE_NINJA_API, "GetEssenceOverview?league={}"),
+    urljoin(POE_NINJA_API, "GetUniqueJewelOverview?league={}"),
+    urljoin(POE_NINJA_API, "GetUniqueMapOverview?league={}"),
+    urljoin(POE_NINJA_API, "GetUniqueFlaskOverview?league={}"),
+    urljoin(POE_NINJA_API, "GetUniqueWeaponOverview?league={}"),
+    urljoin(POE_NINJA_API, "GetUniqueArmourOverview?league={}"),
+    urljoin(POE_NINJA_API, "GetUniqueAccessoryOverview?league={}"),
+    urljoin(POE_NINJA_API, "GetProphecyOverview?league={}"),
+    # urljoin(POE_NINJA_API, "GetMapOverview?league={}"
 ]
 
 _VARIANTS = {
@@ -72,6 +73,11 @@ _VARIANTS = {
     "Added Spells":		("Adds ([0-9]+) to ([0-9]+) Lightning Damage to Spells during Flask effect$", ),
     "Penetration":		("Damage Penetrates ([0-9]+)% Lightning Resistance during Flask effect$", ),
     "Conversion": 		("([0-9]+)% of Physical Damage Converted to Lightning during Flask effect$", ),
+
+    # Beachhead
+    "T5": (),
+    "T10": (),
+    "T15": (),
 }
 
 class FilterVersion(IntEnum):
@@ -250,7 +256,10 @@ class FilterManager:
                             rarity = None
 
                         crit['buyout'] = True
-                        crit['corrupted'] = False
+
+                        if category in ('uniquearmour', 'uniqueweapon'):
+                            crit['corrupted'] = False
+
                         links = item['links']
                         title = "{} {} {}".format(
                             'Legacy' if rarity == ItemRarity.Relic else '',
@@ -265,6 +274,11 @@ class FilterManager:
                             elif links == 6:
                                 priority += 2
 
+                        tier = item['mapTier']
+                        if tier:
+                            crit['level_min'] = tier
+                            crit['level_max'] = tier
+
                         id = get_unique_id(title, name, category, links)
                         filter_ids.append(id)
 
@@ -276,11 +290,13 @@ class FilterManager:
                                               logging.WARN)
                             else:
                                 # crit['explicit'] = {'mods': [{'expr': _VARIANTS[item['variant']]}]}
-                                fg = AllFilterGroup()
-                                for expr in _VARIANTS[item['variant']]:
-                                    fg.addModFilter(ModFilter(ModFilterType.Explicit, expr))
+                                mfs = _VARIANTS[item['variant']]
+                                if mfs:
+                                    fg = AllFilterGroup()
+                                    for expr in _VARIANTS[item['variant']]:
+                                        fg.addModFilter(ModFilter(ModFilterType.Explicit, expr))
 
-                                fltr.criteria['fgs'] = [fg.toDict()]
+                                    fltr.criteria['fgs'] = [fg.toDict()]
 
                         fltr.validate()
                         filters.append(fltr)
@@ -445,9 +461,7 @@ class FilterManager:
                 msgr.send_msg('Failed compiling filter {}: {}'.format(fltr.title, e), logging.WARN)
 
         item_prices = self.getPrices(self.autoFilters)
-
-        self.applyItemPriceOverrides(filters)
-
+        # self.applyItemPriceOverrides(filters)
         compiled_item_prices = self.getCompiledPrices(filters)
 
         user_filters = []
@@ -610,7 +624,14 @@ class FilterManager:
         # if baseComp is None:
         #     return None
 
-        return fltr.compile(baseComp)
+        comp = fltr.compile(baseComp)
+
+        if fltr.id.startswith('_'):
+            val_override = self.price_overrides.get(fltr.id, self.default_price_override)
+            comp['price_max'] = cm.compilePrice(val_override, comp['price_max'])
+
+        # return fltr.compile(baseComp)
+        return comp
 
     def getCategories(self):
         return {fltr.category for fltr in self.getRawFilters() if fltr.category}

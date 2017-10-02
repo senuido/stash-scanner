@@ -6,7 +6,7 @@ from array import array
 
 from lib.CurrencyManager import cm
 from lib.ItemCollection import ItemCollection
-from lib.Utility import logger
+from lib.Utility import logger, dround
 from lib.ItemClass import ItemClass, dir_to_id
 
 float_expr = '[0-9]+|[0-9]+\s*\.\s*[0-9]+'
@@ -21,7 +21,7 @@ expr_level = re.compile('([0-9]+).*')
 phys_expr = re.compile('([0-9]+)% increased Physical Damage$')
 es_expr = re.compile('([0-9]+)% increased (?!maximum).*Energy Shield$')
 armour_expr = re.compile('([0-9]+)% increased Armour(?! during).*$')
-evasion_expr = re.compile('([0-9]+)% increased .*Evasion(?! Rating).*$')
+evasion_expr = re.compile('([0-9]+)% increased .*Evasion(?: Rating)?(?!.*during).*$')
 
 life_expr = re.compile('([\-+][0-9]+) to maximum Life$')
 strength_expr = re.compile('([\-+][0-9]+) to Strength')
@@ -43,7 +43,10 @@ def get_price(price):
     if match:
         num, denom, curr = match.groups()
         denom = 1 if denom is None or float(denom) == 0 else float(denom)
-        return float(num) / denom, curr
+        amount = float(num) / denom
+        if amount == 0:
+            return None
+        return amount, curr
     return None
 
 
@@ -51,7 +54,7 @@ class Item:
     __slots__ = ('_item', 'c_name', 'c_base', 'ilvl', 'links_count', 'corrupted', 'mirrored', 'identified', 'stacksize',
                  'implicit', 'explicit', 'enchant', 'craft', '_mods', 'sockets_count', 'buyout', 'type',
                  'crafted', 'enchanted', 'modcount',
-                 '_quality', '_level', '_exp',
+                 '_quality', '_level', '_exp', '_tier',
 
                  'price',  # price before conversion
                  'c_price',
@@ -101,6 +104,7 @@ class Item:
         self._quality = None
         self._level = None
         self._exp = None
+        self._tier = None
 
         self._es = None
         self._armour = None
@@ -158,10 +162,12 @@ class Item:
             self._level = float(level[0][0].split()[0]) if level else 0
         return self._level
 
-    # @property
-    # def tier(self):
-    #     if self._tier is None:
-    #         tier = self.get_prop_value()
+    @property
+    def tier(self):
+        if self._tier is None:
+            tier = self.get_prop_value('Map Tier')
+            self._tier = int(tier[0][0]) if tier else 0
+        return self._tier
 
     @property
     def exp(self):
@@ -568,7 +574,7 @@ class Item:
         return 0
 
     def get_item_price_raw(self):
-        if self.price is not None:
+        if get_price(self.note):
             return self.note
         return None
 
@@ -589,7 +595,7 @@ class Item:
         price = self.price
         if price is not None:
             amount, currency = price
-            return int(amount) if int(amount) == amount else amount, cm.toWhisper(currency)
+            return dround(amount), cm.toWhisper(currency)
 
         return None
 
@@ -600,7 +606,7 @@ class Item:
         price = self.price
         if price is not None:
             amount, currency = price
-            return int(amount) if int(amount) == amount else round(amount, 2), cm.toFull(currency)
+            return dround(amount), cm.toFull(currency)
 
         return None
 

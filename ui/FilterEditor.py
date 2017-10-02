@@ -110,6 +110,13 @@ class FilterGroupWidget(Frame):
             else:
                 self.entry_mod = Combobox_Autocomplete(self.frm_mod, style='Autocomplete.TEntry',
                                                        list_of_items=mod_helper.mod_list, startswith_match=False)
+                def autocomplete_func(entry_data):
+                    words = [re.escape(word) for word in entry_data.split(' ')]
+                    return [item for item in self.entry_mod.list_of_items
+                            if all(re.search(word, item, re.IGNORECASE) for word in words)]
+
+                self.entry_mod.autocomplete_function = autocomplete_func
+
 
             self.entry_mod.bind('<<TrueFocusOut>>', self.validateMod, add='+')
             self.entry_mod.grid(row=0, column=1, sticky='nsew')
@@ -1190,7 +1197,7 @@ class FilterEditor(Toplevel):
         self.filter_form.field_register('quality_max', entry_max, float, level)
 
         ### Level
-        self.addColumn(Label(parent, text="Level:"), sticky='e')
+        self.addColumn(Label(parent, text="Level/Tier:"), sticky='e')
         entry_min, entry_max = self._add_min_max(parent, validate='all', validatecommand=(is_number_cmd, '%P'))
         self.filter_form.field_register('level_min', entry_min, float, level)
         self.filter_form.field_register('level_max', entry_max, float, level)

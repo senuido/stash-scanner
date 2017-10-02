@@ -37,6 +37,9 @@ logger = root_logger
 
 RE_COMPILED_TYPE = type(re.compile(''))
 
+# TODO: move to ninja api module
+POE_NINJA_API = 'http://api.poe.ninja/api/Data/'
+
 class MsgType(IntEnum):
     ScanStopped = 0
     UpdateID = 1
@@ -88,13 +91,18 @@ class AppConfiguration:
     def __init__(self):
 
         self.league = None
+
         self.request_delay = None
-        self.budget = None
+        self.smooth_delay = None
+        self.scan_mode = None
+        self.history_retention = None
+        self.num_workers = None
+        self.max_conns = None
+
         self.notify = None
         self.notify_copy_msg = None
         self.notify_play_sound = None
         self.notification_duration = None
-        self.scan_mode = None
 
         # if load:
         #     self.load()
@@ -171,6 +179,26 @@ class AppConfiguration:
         except Exception:
             self.notification_duration = 4
 
+        try:
+            self.history_retention = int(settings['history_retention'])
+        except Exception:
+            self.history_retention = 1
+
+        try:
+            self.max_conns = int(settings['maximum_connections'])
+        except Exception:
+            self.max_conns = 8
+
+        try:
+            self.num_workers = int(settings['num_workers'])
+        except Exception:
+            self.num_workers = 0
+
+        try:
+            self.smooth_delay = str2bool(settings['smooth_delay'])
+        except Exception:
+            self.smooth_delay = True
+
         # TODO: validate
         self.league = settings.get('league', 'Standard')
         self.scan_mode = settings.get('scan_mode', 'Latest')
@@ -180,12 +208,18 @@ class AppConfiguration:
             raise TypeError('cfg must be of type AppConfiguration')
 
         self.league = cfg.league
+
+        self.scan_mode = cfg.scan_mode
+        self.request_delay = cfg.request_delay
+        self.smooth_delay = cfg.smooth_delay
+        self.history_retention = cfg.history_retention
+        self.num_workers = cfg.num_workers
+        self.max_conns = cfg.max_conns
+
         self.notify = cfg.notify
         self.notify_copy_msg = cfg.notify_copy_msg
         self.notify_play_sound = cfg.notify_play_sound
         self.notification_duration = cfg.notification_duration
-        self.request_delay = cfg.request_delay
-        self.scan_mode = cfg.scan_mode
 
     def save(self):
         parser = ConfigParser()
@@ -193,12 +227,18 @@ class AppConfiguration:
 
         values = {
             'league': self.league,
+
             'request_delay': self.request_delay,
+            'smooth_delay': self.smooth_delay,
+            'scan_mode': self.scan_mode,
+            'history_retention': self.history_retention,
+            'num_workers': self.num_workers,
+            'maximum_connections': self.max_conns,
+
             'notify': self.notify,
             'notify_copy_msg': self.notify_copy_msg,
             'notify_play_sound': self.notify_play_sound,
             'notification_duration': self.notification_duration,
-            'scan_mode': self.scan_mode
         }
 
         parser[self.section_name] = values
@@ -228,6 +268,8 @@ def getBytesFromURL(url, handle=None, max_attempts=1, connect_timeout=None, time
         handle.setopt(handle.CONNECTTIMEOUT, connect_timeout)
     if timeout:
         handle.setopt(handle.TIMEOUT, timeout)
+
+    handle.setopt(pycurl.USERAGENT, "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36")
     # handle.setopt(handle.VERBOSE, 1)
     if gzip:
         handle.setopt(handle.ENCODING, 'gzip, deflate')

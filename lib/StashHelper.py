@@ -87,7 +87,19 @@ def parse_stashes_parallel(data, filters, ccm, league, c_budget, stateMgr, resul
     # pool = None
     # if pool:
     #TODO: send multiple stashes to reduce overhead
-    results = pool.starmap(parse_stash, ((stash, filters, c_budget, ccm) for stash in league_stashes), round_up(len(league_stashes)/numCores))
+    # results = pool.starmap(parse_stash, ((stash, filters, c_budget, ccm) for stash in league_stashes), round_up(len(league_stashes)/numCores))
+
+    grouped_stashes = []
+    step, extra = divmod(len(league_stashes), numCores)
+    for i in range(0, numCores):
+        if i == 0:
+            grouped_stashes.append(league_stashes[:step + extra])
+        else:
+            sx = i * step + extra
+            grouped_stashes.append(league_stashes[sx:sx + step])
+
+    results = pool.starmap(parse_stashes, ((stashes, filters, c_budget, ccm) for stashes in grouped_stashes), 1)
+
     # else:
     #     results = (parse_stash(stash, filters, c_budget) for stash in league_stashes)
 
@@ -115,6 +127,23 @@ def parse_stash(stash, filters, c_budget, ccm):
 
     return results
 
+def parse_stashes(stashes, filters, c_budget, ccm):
+    cm.fromCCM(ccm)
+
+    results = []
+    for stash in stashes:
+        stash_price = get_stash_price(stash)
+        stash_id = stash['id']
+        for item in stash["items"]:
+            curItem = Item(item, stash_price)
+
+            if within_budget(curItem, c_budget):
+                for fltr in filters:
+                    if fltr.checkItem(curItem):
+                        results.append((curItem, stash, fltr))
+                        break
+
+    return results
 
 def within_budget(item, c_budget):
     return not (item.c_price is not None and c_budget is not None and item.c_price > c_budget)

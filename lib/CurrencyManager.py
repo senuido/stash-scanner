@@ -21,6 +21,8 @@ class CurrencyManager:
     CURRENCY_FNAME = "cfg\\currency.json"
     CURRENCY_API = ["http://poeninja.azureedge.net/api/Data/GetCurrencyOverview?league={}",
                     "http://poeninja.azureedge.net/api/Data/GetFragmentOverview?league={}"]
+    # CURRENCY_API = [urljoin(POE_NINJA_API, "GetCurrencyOverview?league={}"),
+    #                 urljoin(POE_NINJA_API, "GetFragmentOverview?league={}")]
     CURRENCY_WHISPER_BASE = {
         "Apprentice Cartographer's Sextant": 'apprentice sextant',
         "Armourer's Scrap": "armourer's",
