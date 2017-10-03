@@ -4,9 +4,10 @@ import re
 import threading
 from datetime import datetime, timedelta
 from json import JSONEncoder
+from urllib.parse import urljoin
 
 from lib.Utility import getJsonFromURL, AppException, config, NoIndent, NoIndentEncoder, logexception, msgr, \
-    utc_to_local, CompileException, ConfidenceLevel
+    utc_to_local, CompileException, ConfidenceLevel, POE_NINJA_API
 
 _PRICE_REGEX = re.compile('\s*([0-9]+|[0-9]+\.[0-9]+)\s+([a-z\-]+)')
 
@@ -19,40 +20,10 @@ INVALID_PRICE = "Invalid price {}"
 
 class CurrencyManager:
     CURRENCY_FNAME = "cfg\\currency.json"
-    CURRENCY_API = ["http://poeninja.azureedge.net/api/Data/GetCurrencyOverview?league={}",
-                    "http://poeninja.azureedge.net/api/Data/GetFragmentOverview?league={}"]
-    # CURRENCY_API = [urljoin(POE_NINJA_API, "GetCurrencyOverview?league={}"),
-    #                 urljoin(POE_NINJA_API, "GetFragmentOverview?league={}")]
-    CURRENCY_WHISPER_BASE = {
-        "Apprentice Cartographer's Sextant": 'apprentice sextant',
-        "Armourer's Scrap": "armourer's",
-        "Blacksmith's Whetstone": 'whetstone',
-        "Blessed Orb": 'blessed',
-        "Cartographer's Chisel": 'chisel',
-        "Chromatic Orb": 'chromatic',
-        "Divine Orb": 'divine',
-        "Exalted Orb": 'exalted',
-        "Gemcutter's Prism": 'gcp',
-        "Glassblower's Bauble": 'bauble',
-        "Jeweller's Orb": 'jewellers',
-        "Journeyman Cartographer's Sextant": 'journeyman sextant',
-        "Master Cartographer's Sextant": 'master sextant',
-        "Orb of Alchemy": 'alchemy',
-        "Orb of Alteration": 'alteration',
-        "Orb of Augmentation": 'augmentation',
-        "Orb of Chance": 'chance',
-        "Orb of Fusing": 'fusing',
-        "Orb of Regret": 'regret',
-        "Orb of Scouring": 'scouring',
-        "Orb of Transmutation": 'transmutation',
-        "Chaos Orb": 'chaos',
-        "Portal Scroll": 'portal',
-        "Regal Orb": 'regal',
-        "Silver Coin": 'silver',
-        "Vaal Orb": 'vaal',
-        "Eternal Orb": 'eternal',
-        "Mirror of Kalandra": 'mirror'
-    }
+    CURRENCY_BASE_FNAME = "res\\currency_base.json"
+    CURRENCY_API = [urljoin(POE_NINJA_API, "GetCurrencyOverview?league={}"),
+                    urljoin(POE_NINJA_API, "GetFragmentOverview?league={}")]
+
     UPDATE_INTERVAL = 10  # minutes
     DEFAULT_CONFIDENCE_LEVEL = ConfidenceLevel.Medium.value
     CHAOS_NAME = 'Chaos Orb'
@@ -62,8 +33,8 @@ class CurrencyManager:
 
     def init(self):
         self.rates = {}
-        self.whisper = CurrencyManager.CURRENCY_WHISPER_BASE  # short to whisper message name mapping
-        self.shorts = {curr: [short] for curr, short in self.whisper.items()}
+        self.whisper = {}
+        self.shorts = {}
         self.overrides = {}
 
         self.cshorts = {}  # short to full name mapping
@@ -75,15 +46,28 @@ class CurrencyManager:
 
         self.initialized = False
 
+    def load_base(self):
+        try:
+            with open(CurrencyManager.CURRENCY_BASE_FNAME, encoding="utf-8", errors="replace") as f:
+                data = json.load(f)
+
+            self.shorts = data.get('shorts', {})
+            self.whisper = data.get('whisper', {})
+
+            for curr in self.shorts:
+                self.shorts[curr] = list(set([short.lower() for short in self.shorts[curr]]))
+        except FileNotFoundError as e:
+            raise AppException('Loading currency base failed. Missing file {}'.format(e.filename))
+
     def load(self):
+        self.load_base()
+
         try:
             with open(CurrencyManager.CURRENCY_FNAME, encoding="utf-8", errors="replace") as f:
                 data = json.load(f)
 
             self.overrides = data.get('overrides', {})
             self.rates = data.get('rates', {})
-            self.shorts = data.get('shorts', self.shorts)
-            self.whisper = data.get('whisper', self.whisper)
             self.confidence_level = data.get('confidence_level', self.DEFAULT_CONFIDENCE_LEVEL)
             last_update = data.get('last_update') or ''
 
@@ -93,9 +77,6 @@ class CurrencyManager:
                 # self.last_update = datetime.utcnow() - timedelta(minutes=self.UPDATE_INTERVAL)
                 self.last_update = None
 
-            for curr in self.shorts:
-                self.shorts[curr] = list(set([short.lower() for short in self.shorts[curr]]))
-
             self.compile()
         except FileNotFoundError:
             self.save()
@@ -104,8 +85,8 @@ class CurrencyManager:
         data = {
             'overrides': self.overrides,
             'rates': self.rates,
-            'shorts': {k: NoIndent(v) for k, v in self.shorts.items()},
-            'whisper': self.whisper,
+            # 'shorts': {k: NoIndent(v) for k, v in self.shorts.items()},
+            # 'whisper': self.whisper,
             'last_update': self.last_update,
             'confidence_level': self.confidence_level,
         }
@@ -150,7 +131,7 @@ class CurrencyManager:
         # print('updating currency..')
 
         try:
-            shorts = {}
+            shorts = self.shorts
             rates = {}
 
             def get_count(currency):
@@ -164,13 +145,13 @@ class CurrencyManager:
                     raise AppException("Currency update failed. Empty response from server.")
 
                 if data:
-                    shorts.update({currency['name']: currency['shorthands'] for currency in data["currencyDetails"]})
+                    # shorts.update({currency['name']: currency['shorthands'] for currency in data["currencyDetails"]})
                     rates.update({currency['currencyTypeName']: float(currency['chaosEquivalent']) for currency in data["lines"] if get_count(currency) >= self.confidence_level})
 
 
-            cur_shorts = dict(self.shorts)
-            for name in cur_shorts:
-                shorts[name] = list(set(cur_shorts[name] + shorts.get(name, [])))
+            # cur_shorts = dict(self.shorts)
+            # for name in cur_shorts:
+            #     shorts[name] = list(set(cur_shorts[name] + shorts.get(name, [])))
 
             # can use update if we want to keep information from past updates, more robust if server returns less data
             # dict(self.rates).update(rates)

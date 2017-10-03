@@ -1,0 +1,366 @@
+{
+    "shorts": {
+        "Ancient Orb": [
+            "ancient-orb"
+        ],
+        "Ancient Reliquary Key": [
+            "ancient-reliquary-key"
+        ],
+        "Annulment Shard": [
+            "annulment-shard"
+        ],
+        "Apprentice Cartographer's Seal": [
+            "apprentice-seal"
+        ],
+        "Apprentice Cartographer's Sextant": [
+            "apprentice-sextant",
+            "apprentice"
+        ],
+        "Armourer's Scrap": [
+            "scrap",
+            "scraps",
+            "arm",
+            "armourers",
+            "armours",
+            "armourer",
+            "armour",
+            "armourer's"
+        ],
+        "Blacksmith's Whetstone": [
+            "whetst",
+            "whetstone",
+            "blacksmith",
+            "whe",
+            "bla",
+            "whet",
+            "whetstones"
+        ],
+        "Blessed Orb": [
+            "blesse",
+            "bles",
+            "blessed"
+        ],
+        "Blessing of Chayula": [
+            "blessing-of-chayula",
+            "blessing-chayula"
+        ],
+        "Blessing of Esh": [
+            "blessing-of-esh",
+            "blessing-esh"
+        ],
+        "Blessing of Tul": [
+            "blessing-of-tul",
+            "blessing-tul"
+        ],
+        "Blessing of Uul-Netol": [
+            "blessing-uul-netol",
+            "blessing-of-uul-netol"
+        ],
+        "Blessing of Xoph": [
+            "blessing-xoph",
+            "blessing-of-xoph"
+        ],
+        "Cartographer's Chisel": [
+            "chisels",
+            "chisel",
+            "chis",
+            "cart"
+        ],
+        "Chaos Orb": [
+            "choas",
+            "chao",
+            "c",
+            "chaos"
+        ],
+        "Chayula's Breachstone": [
+            "chayulas-breachstone"
+        ],
+        "Chromatic Orb": [
+            "chrom",
+            "chrome",
+            "chromatic",
+            "chromatics",
+            "chromes"
+        ],
+        "Divine Orb": [
+            "divine",
+            "div"
+        ],
+        "Divine Vessel": [
+            "divine-vessel"
+        ],
+        "Eber's Key": [
+            "eber"
+        ],
+        "Engineer's Orb": [
+            "engineers-orb"
+        ],
+        "Esh's Breachstone": [
+            "eshs-breachstone"
+        ],
+        "Eternal Orb": [
+            "eternal",
+            "ete"
+        ],
+        "Exalted Orb": [
+            "exalts",
+            "exe",
+            "exalted",
+            "exa",
+            "ex",
+            "exalt"
+        ],
+        "Exalted Shard": [
+            "exalted-shard"
+        ],
+        "Fragment of the Chimera": [
+            "chimera",
+            "chimer"
+        ],
+        "Fragment of the Hydra": [
+            "hydra"
+        ],
+        "Fragment of the Minotaur": [
+            "minotaur",
+            "minot"
+        ],
+        "Fragment of the Phoenix": [
+            "phoenix",
+            "pheon",
+            "phenix"
+        ],
+        "Gemcutter's Prism": [
+            "gcp",
+            "gemc"
+        ],
+        "Glassblower's Bauble": [
+            "ba",
+            "glass",
+            "bauble",
+            "gla"
+        ],
+        "Harbinger's Orb": [
+            "harbingers-orb"
+        ],
+        "Inya's Key": [
+            "inya"
+        ],
+        "Jeweller's Orb": [
+            "jeweller",
+            "jew",
+            "jewel",
+            "jewellers"
+        ],
+        "Journeyman Cartographer's Seal": [
+            "journeyman-seal"
+        ],
+        "Journeyman Cartographer's Sextant": [
+            "journeyman-sextant",
+            "journeyman"
+        ],
+        "Master Cartographer's Seal": [
+            "master-seal"
+        ],
+        "Master Cartographer's Sextant": [
+            "master-sextant",
+            "master"
+        ],
+        "Mirror Shard": [
+            "mirror-shard"
+        ],
+        "Mirror of Kalandra": [
+            "mirror",
+            "mir",
+            "kal"
+        ],
+        "Mortal Grief": [
+            "grief",
+            "grie"
+        ],
+        "Mortal Hope": [
+            "hope"
+        ],
+        "Mortal Ignorance": [
+            "ign",
+            "ignorance"
+        ],
+        "Mortal Rage": [
+            "rage"
+        ],
+        "Mortal Set": [
+            "mortal-set"
+        ],
+        "Offering to the Goddess": [
+            "offering",
+            "offer"
+        ],
+        "Orb of Alchemy": [
+            "alch",
+            "alchemy",
+            "alc"
+        ],
+        "Orb of Alteration": [
+            "alteration",
+            "alternation",
+            "alt",
+            "alts"
+        ],
+        "Orb of Annulment": [
+            "orb-of-annulment"
+        ],
+        "Orb of Augmentation": [
+            "aug",
+            "augmentation",
+            "augment",
+            "augs"
+        ],
+        "Orb of Binding": [
+            "orb-of-binding"
+        ],
+        "Orb of Chance": [
+            "chanc",
+            "chance"
+        ],
+        "Orb of Fusing": [
+            "fuse",
+            "fusing",
+            "fusings",
+            "fus"
+        ],
+        "Orb of Horizons": [
+            "orb-of-horizons"
+        ],
+        "Orb of Regret": [
+            "regret",
+            "regr",
+            "regrets"
+        ],
+        "Orb of Scouring": [
+            "scour",
+            "scouring"
+        ],
+        "Orb of Transmutation": [
+            "transmutes",
+            "transmutty",
+            "trans",
+            "tra",
+            "transmutation",
+            "transmute"
+        ],
+        "Pale Court Set": [
+            "pale-court-set"
+        ],
+        "Perandus Coin": [
+            "shekel",
+            "p",
+            "perandus",
+            "coins",
+            "coin"
+        ],
+        "Portal Scroll": [
+            "portal",
+            "port"
+        ],
+        "Regal Orb": [
+            "regal",
+            "rega"
+        ],
+        "Sacrifice Set": [
+            "sacrifice-set"
+        ],
+        "Sacrifice at Dawn": [
+            "dawn"
+        ],
+        "Sacrifice at Dusk": [
+            "dusk"
+        ],
+        "Sacrifice at Midnight": [
+            "mid",
+            "midnight"
+        ],
+        "Sacrifice at Noon": [
+            "noon"
+        ],
+        "Scroll of Wisdom": [
+            "wis",
+            "wisdom"
+        ],
+        "Shaper Set": [
+            "shaper-set"
+        ],
+        "Silver Coin": [
+            "silver"
+        ],
+        "Splinter of Chayula": [
+            "splinter-chayula",
+            "splinter-of-chayula"
+        ],
+        "Splinter of Esh": [
+            "splinter-esh",
+            "splinter-of-esh"
+        ],
+        "Splinter of Tul": [
+            "splinter-of-tul",
+            "splinter-tul"
+        ],
+        "Splinter of Uul-Netol": [
+            "splinter-of-uul-netol",
+            "splinter-uul-netol"
+        ],
+        "Splinter of Xoph": [
+            "splinter-of-xoph",
+            "splinter-xoph"
+        ],
+        "Stacked Deck": [
+            "deck"
+        ],
+        "Tul's Breachstone": [
+            "tuls-breachstone"
+        ],
+        "Uul-Netol's Breachstone": [
+            "uul-netol-breachstone"
+        ],
+        "Vaal Orb": [
+            "vaal"
+        ],
+        "Volkuur's Key": [
+            "volkuur"
+        ],
+        "Xoph's Breachstone": [
+            "xophs-breachstone"
+        ],
+        "Yriel's Key": [
+            "yriel"
+        ]
+    },
+    "whisper": {
+        "Apprentice Cartographer's Sextant": "apprentice sextant",
+        "Armourer's Scrap": "armourer's",
+        "Blacksmith's Whetstone": "whetstone",
+        "Blessed Orb": "blessed",
+        "Cartographer's Chisel": "chisel",
+        "Chaos Orb": "chaos",
+        "Chromatic Orb": "chromatic",
+        "Divine Orb": "divine",
+        "Eternal Orb": "eternal",
+        "Exalted Orb": "exalted",
+        "Gemcutter's Prism": "gcp",
+        "Glassblower's Bauble": "bauble",
+        "Jeweller's Orb": "jewellers",
+        "Journeyman Cartographer's Sextant": "journeyman sextant",
+        "Master Cartographer's Sextant": "master sextant",
+        "Mirror of Kalandra": "mirror",
+        "Orb of Alchemy": "alchemy",
+        "Orb of Alteration": "alteration",
+        "Orb of Augmentation": "augmentation",
+        "Orb of Chance": "chance",
+        "Orb of Fusing": "fusing",
+        "Orb of Regret": "regret",
+        "Orb of Scouring": "scouring",
+        "Orb of Transmutation": "transmutation",
+        "Portal Scroll": "portal",
+        "Regal Orb": "regal",
+        "Silver Coin": "silver",
+        "Vaal Orb": "vaal"
+    }
+}
