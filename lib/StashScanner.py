@@ -3,15 +3,16 @@ import json
 import logging
 import os
 import pycurl
-import time
-from contextlib import closing
+
+# import time
+# from contextlib import closing
+# from multiprocessing.pool import Pool
+
 from datetime import datetime
-from multiprocessing.pool import Pool
 from queue import Empty, Full
 from threading import Event
 from urllib.parse import urljoin
 
-import requests
 
 from lib.Downloader import Downloader, get_delta
 from lib.UpdateThread import UpdateThread
@@ -62,7 +63,7 @@ class StashScanner:
 
         if config.notify:
             price = item.get_price_raw(get_stash_price_raw(stash)) or ''
-            size_str = "" if item.stacksize == 1 else item.stacksize
+            size_str = "" if item.stacksize == 1 else "{}x".format(item.stacksize)
 
             msg = "{} {}\n{}".format(size_str, item.name, price).strip()
             self.notifier.send((fltr.getDisplayTitle(), msg, item.get_whisper_msg(stash)))
@@ -164,7 +165,7 @@ class StashScanner:
             latest_id = self._get_latest_id(is_beta)
 
             if latest_id:
-                if get_delta(self.stateMgr.getChangeId(), latest_id) > 0:
+                if not self.stateMgr.getChangeId() or get_delta(self.stateMgr.getChangeId(), latest_id) > 0:
                     self.stateMgr.saveState(latest_id)
                 else:
                     msgr.send_msg('Saved ID is more recent, continuing..')

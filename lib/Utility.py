@@ -157,7 +157,7 @@ class AppConfiguration:
         try:
             self.request_delay = float(settings['request_delay'])
         except Exception:
-            self.request_delay = 1
+            self.request_delay = 0.7
 
         try:
             self.notify = str2bool(settings['notify'])

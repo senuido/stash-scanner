@@ -126,7 +126,7 @@ class AppGUI(Tk):
         ItemType.Relic: 'name-relic'
     }
 
-    VERSION_NUMBER = 'v1.06'
+    VERSION_NUMBER = 'v1.05'
     VERSION_URL = 'https://github.com/senuido/stash-scanner/raw/master/files/latest'
     RELEASES_URL = 'https://github.com/senuido/stash-scanner/releases/latest'
     VERSION_TEXT = 'Stash Scanner {}'.format(VERSION_NUMBER)

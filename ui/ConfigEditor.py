@@ -205,7 +205,7 @@ class SettingsEditor(Frame):
         cfg.notify_copy_msg = self.var_notify_copy.get()
         cfg.notify_play_sound = self.var_notify_play_sound.get()
         cfg.notification_duration = float(self.entry_notification_duration.get() or 4)
-        cfg.request_delay = float(self.entry_req_delay.get() or 1)
+        cfg.request_delay = float(self.entry_req_delay.get() or 0.7)
         cfg.scan_mode = self.cmb_scan_mode.get() or scanModeOptions[0]
 
         cfg.history_retention = int(self.entry_history_retention.get() or 1)
