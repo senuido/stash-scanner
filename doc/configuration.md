@@ -44,7 +44,7 @@ Note the API might not provide a rate for extremely rare currency such as mirror
 To avoid that, provide an estimated price using an override, such as `50 ex` or whatever you see fit.
 
 ## Disabling generated filters
-* **By price:** generally *generated* filters above the threshold will be active.  By settings it to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*, under **item value threshold**
+* **By item value:** generally *generated* filters above the threshold will be active.  By settings it to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*, under **item value threshold**
 
 * **Specific:** you can control individual filters if you use set their state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
 
