@@ -14,17 +14,17 @@ Filters are used to find the items you want. there are two types of filters:
   - Latest: start scanning from the latest data. Use this unless you're interested in historical data.
   - Continue: resume scanning from the last stopping point. if there is none, starts from the latest data
 - **Growl notifications:** turn on/off notifications
-- **Notification duration**
-- **Copy message to clipboard**
+- **Notification duration** - time between alerts
+- **Copy message** - whether or not to copy whisper message when a match is found
 
 ## Prices
 Here you can view and customize item prices and generated filters. 
 Customization is done using *overrides*. Overrides follow the same format as prices. For example, to change an item's price to be 20 chaos, just put in `20 chaos`.  
 overrides can be relative to the original price. Examples: `+1 ex`, `* 3`, `/ 2`, `-10 chaos`
 
-  - **Item price threshold:** think of this as the minimum value of items you're interested in. *Generated* filters for items with effective price below this threshold will be disabled.
-  - **Default price override:** default item price override. if none is specified, this is used.
-  - **Default filter override:** default filter price override. if none is specified, this is used. By setting this to `* 0.8` you're telling the app you want to be notified when an item is posted at 80% of its API price.
+  - **Item value threshold:** think of this as the minimum value of items you're interested in. *Generated* filters for items with effective price below this threshold will be disabled.
+  - **Default item value override:** default item price override. if none is specified, this is used. Default is `* 1` which does nothing.
+  - **Default filter override:** default filter price override. if none is specified, this is used. For example, by setting this to `* 0.8` you're telling the app you want to be notified when an item is posted at 80% of its value.
   - Table columns: 
     - **Item price:** item price as it was retrieved from the API
     - **Override:** use this to adjust item prices
@@ -44,7 +44,7 @@ Note the API might not provide a rate for extremely rare currency such as mirror
 To avoid that, provide an estimated price using an override, such as `50 ex` or whatever you see fit.
 
 ## Disabling generated filters
-* **By price:** generally *generated* filters above the threshold will be active.  By settings this to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*.
+* **By price:** generally *generated* filters above the threshold will be active.  By settings it to a high enough value, you can disable all generated filters if you wish. You can set it in the *Prices tab*, under **item value threshold**
 
 * **Specific:** you can control individual filters if you use set their state override in the *Prices tab*. this will force a specific filter to be disabled/enabled, ignoring other configurations.
 
