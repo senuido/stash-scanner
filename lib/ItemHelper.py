@@ -73,7 +73,7 @@ class Item:
         self.links_count = self._get_item_links_count()
         self.sockets_count = len(self.sockets)
         self.ilvl = item['ilvl']
-        self.corrupted = item['corrupted']
+        self.corrupted = item.get('corrupted', False)
         self.mirrored = item.get('duplicated', False)
         self.identified = item['identified']
 
